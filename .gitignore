@@ -1,0 +1,11 @@
+venv/
+__pycache__/
+.idea/
+
+datasets/MNIST/raw/
+FL/record/record_output/*.pth
+FL/record/*.png
+FL/test/test_output/*.png
+FL/record/fedavg_comparison.png
+
+.cursor/rules/*
