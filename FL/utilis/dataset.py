@@ -13,7 +13,7 @@ class Dataset:
         self.max_samples = max_samples
         self.dataset_train, self.dataset_test, self.labels = get_data(dataset_name)
         self.users_indices_of_data = []
-        self.silos_indices_of_data = {i: [] for i in range(self.n_silos)}
+        self.silos_indices_of_data = {i: {user_id: [] for user_id in range(self.n_users)} for i in range(self.n_silos)}
         self.silos_weights = []
         self.divide_dataset()
     
@@ -100,7 +100,7 @@ class Dataset:
         """
         np.random.seed(self.seed)
 
-        for indices in self.data_indices_of_user.values():
+        for user_id, indices in self.data_indices_of_user.items():
             N = self.n_silos
             x = np.arange(1, N + 1)
 
@@ -119,9 +119,10 @@ class Dataset:
                     x, size=len(indices), replace=True, p=weights)
                 user_data_indices_in_silo = user_data_indices_in_silo - 1
 
-            for silo_id, idx in zip(user_data_indices_in_silo, indices):
-                self.silos_indices_of_data[silo_id].append(idx)
 
+            for silo_id, idx in zip(user_data_indices_in_silo, indices):
+                self.silos_indices_of_data[silo_id][user_id].append(idx)
+            
         # Silo weight list
         self.silos_weights = [len(silo) for silo in self.silos_indices_of_data.values()]
 
@@ -139,10 +140,28 @@ class Dataset:
         # Get silo's data indices list
         silo_indices = self.silos_indices_of_data[silo_id]
         
+        silo_data = []
+        
+        for user_id, indices in silo_indices.items():
+            for idx in indices:
+                silo_data.append(idx)
+        
         # Create subset from list
-        silo_data = torch.utils.data.Subset(self.dataset_train, silo_indices)
+        silo_data = torch.utils.data.Subset(self.dataset_train, silo_data)
         
         return silo_data
+
+
+    def get_user_histogram(self, silo_id):
+        """
+        Get the histogram of user's data.
+        """
+        user_histogram = {}
+        
+        for user_id, indices in self.silos_indices_of_data[silo_id].items():
+            user_histogram[user_id] = len(indices)
+            
+        return user_histogram
 
 
     def get_silos_weights(self):

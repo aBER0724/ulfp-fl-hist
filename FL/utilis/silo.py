@@ -7,12 +7,13 @@ import torch.nn as nn
 from FL.utilis.sampling import get_data_loaders_uniform_without_replace
 
 class Silo:
-    def __init__(self, id, dataset, model, learning_rate, q_for_batch_size, epoch_num, is_secure='ndp', epsilon=50.0, delta=1e-5, max_grad_norm=1.2):
-        self.id = id
+    def __init__(self, silo_id, dataset, model, learning_rate, q_for_batch_size, epoch_num, is_secure='ndp', epsilon=50.0, delta=1e-5, max_grad_norm=1.2):
+        self.id = silo_id
         self.model = copy.deepcopy(model)
         self.optimizer = torch.optim.SGD(self.model.parameters(), lr=learning_rate)
         self.criterion = nn.CrossEntropyLoss()
-        self.silo_data = dataset.get_silo_dataset(id)
+        self.silo_data = dataset.get_silo_dataset(silo_id)
+        self.user_histogram = dataset.get_user_histogram(silo_id)
         self.epoch_num = epoch_num
         self.minibatch_size = math.floor(
             len(self.silo_data) * q_for_batch_size)  # data -> mini_batch
@@ -47,6 +48,12 @@ class Silo:
         Get the local model.
         """
         return self.model
+
+    def get_user_histogram(self):
+        """
+        Get the histogram of user's data.
+        """
+        return self.user_histogram
 
     def local_silos_sgd(self):
         """

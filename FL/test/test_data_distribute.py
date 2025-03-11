@@ -8,7 +8,7 @@ from collections import defaultdict
 import argparse
 from FL.utilis.dataset import Dataset
 
-def analyze_distributions(data_indices_of_user, data_indices_of_silo, dataset_train, silo_datasets, mode):
+def analyze_distributions(data_indices_of_user, data_indices_of_silo, dataset_train, silo_datasets, mode, dataset_object=None):
     """ 
     Analyze the distribution of users and labels
     Args:
@@ -17,6 +17,7 @@ def analyze_distributions(data_indices_of_user, data_indices_of_silo, dataset_tr
         dataset_train: Training dataset
         silo_datasets: Dataset for each silo
         mode: Data distribution mode
+        dataset_object: Dataset object containing the get_user_histogram method
     Returns:
         An object containing all plotting functions
     """
@@ -29,12 +30,19 @@ def analyze_distributions(data_indices_of_user, data_indices_of_silo, dataset_tr
 
     # 1. Count the user distribution for each silo
     silo_user_distributions = defaultdict(dict)
-    for silo_id, silo_indices in data_indices_of_silo.items():
-        user_counts = defaultdict(int)
-        for idx in silo_indices:
-            user_id = data_to_user[idx]
-            user_counts[user_id] += 1
-        silo_user_distributions[silo_id] = user_counts
+    
+    if dataset_object is not None:
+        # Use the new get_user_histogram method if dataset_object is provided
+        for silo_id in silo_datasets.keys():
+            silo_user_distributions[silo_id] = dataset_object.get_user_histogram(silo_id)
+    else:
+        # Fall back to manual calculation if dataset_object is not provided
+        for silo_id, silo_indices in data_indices_of_silo.items():
+            user_counts = defaultdict(int)
+            for idx in silo_indices:
+                user_id = data_to_user[idx]
+                user_counts[user_id] += 1
+            silo_user_distributions[silo_id] = user_counts
 
     # 2. Label distribution
     silo_label_distributions = {}
@@ -140,7 +148,6 @@ def analyze_distributions(data_indices_of_user, data_indices_of_silo, dataset_tr
             """
             self.plot_silos_distribution()
             self.plot_user_distribution_heatmap()
-            self.plot_cross_silo_comparison()
 
     return PlotFunctions()
 
@@ -172,6 +179,15 @@ def print_detail_of_silo(dataset_object, silo_loaders, silo_datasets):
         print(f"   Total samples: {total}")
         print(f"   Batch number: {len(loader)}")
         # print(f"   Example data shape: {next(iter(loader))[0].shape}")  # [Batch_size, Channels, Height, Width]
+        
+        # Print user histogram for this silo
+        user_histogram = dataset_object.get_user_histogram(silo_id)
+        # Get top 5 users by data count
+        top_users = sorted(user_histogram.items(), key=lambda x: x[1], reverse=True)[:5]
+        print(f"   Top 5 users in this silo:")
+        for user_id, count in top_users:
+            print(f"      User-{user_id}: {count} samples")
+        print(f"   Total unique users: {len(user_histogram)}")
 
     dataset_train = dataset_object.get_whole_train_data()
     for silo_id, dataset in silo_datasets.items():
@@ -251,7 +267,7 @@ if __name__ == "__main__":
 
         # Analyze and plot the distributions
         plot_functions = analyze_distributions(
-            data_indices_of_user, data_indices_of_silo, dataset_train, silo_datasets, distribute_mode)
+            data_indices_of_user, data_indices_of_silo, dataset_train, silo_datasets, distribute_mode, dataset_object)
         
         # Call the appropriate function based on the user's choice of plot type
         if plot_type == 'all':
