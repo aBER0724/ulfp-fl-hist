@@ -31,5 +31,6 @@ if __name__ == "__main__":
 	silos = [Silo(i, dataset, model, learning_rate, q_for_batch_size, local_epoch, is_secure, epsilon, delta, max_grad_norm) for i in range(n_silos)]
     
 	for silo in silos:
-		for user_id, data_num in silo.get_user_histogram().items():
-			print(user_id, data_num)
+		print(silo.get_user_histogram())
+		# for user_id, data_num in silo.get_user_histogram().items():
+		# 	print(user_id, data_num)

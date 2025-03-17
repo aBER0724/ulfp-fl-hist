@@ -8,11 +8,11 @@ from FL.utilis.silo import Silo
 from FL.utilis.server import Server
 from FL.utilis.dataset import Dataset
 
-EPSILON = 50.0
+EPSILON = 5.0
 DELTA = 1e-5
 MAX_GRAD_NORM = 1.2
 
-def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epochs, learning_rate, alpha, mode, q_for_batch_size, is_secure, epsilon, delta, max_grad_norm, iters=10):
+def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epochs, local_learning_rate, global_learning_rate, alpha, mode, q_for_batch_size, is_secure, is_clip, weighting_mode, epsilon, delta, max_grad_norm, iters=10):
     """
     Params:
         dataset_name: Dataset Name
@@ -28,8 +28,27 @@ def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epoch
     """
     dataset = Dataset(dataset_name, n_silos, n_users, alpha, seed, mode)
     
-    server = Server(dataset, model)
-    silos = [Silo(i, dataset, model, learning_rate, q_for_batch_size, local_epochs, is_secure, epsilon, delta, max_grad_norm) for i in range(n_silos)]
+    server = Server(dataset, model, global_learning_rate, is_secure)
+    silos = [Silo(i, server, dataset, model, local_learning_rate, q_for_batch_size, local_epochs, is_secure, is_clip, epsilon, delta, max_grad_norm) for i in range(n_silos)]
+    
+    print("================COMPUTE USER WEIGHT================")
+    
+    channel_silos_to_server = []
+    
+    # Silos send user histogram to server
+    for i in range(n_silos):
+        channel_silos_to_server.append(silos[i].send_user_histogram())
+    
+    # Server calculate each user sum of histogram
+    sumed_user_histogram = server.receive_silos_model(channel_silos_to_server)
+    
+    # Server broadcast user histogram to silos
+    channel_server_to_silos = [sumed_user_histogram for _ in range(n_silos)]
+    
+    # Silos receive user histogram from server
+    for i in range(n_silos):
+        silos[i].receive_user_histogram(channel_server_to_silos[i])
+    
 
     print(f"====================FL START===================")
 
@@ -41,20 +60,21 @@ def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epoch
         print(f"--------------------No.{i} FL--------------------")
 
         # 1. Broadcast Global Model to silos
-        server.send_global_model_to_silos(silos)
+        channel_server_to_silos = [server.get_model() for _ in range(n_silos)]
 
         # 2. Local Training and get average metrics
         for silo in silos:
-            avg_loss, avg_acc = silo.local_silos_sgd()
+            silo.receive_global_model(server.get_model())
+            avg_loss, avg_acc = silo.local_silos_sgd(server.get_model())
 
         # 3. Aggregate Local Model to Global Model
-        silos_models = [silo.model for silo in silos]
-        server.receive_silos_model(silos_models)
+        channel_silos_to_server = [silo.model for silo in silos]
+        server.receive_silos_model(channel_silos_to_server)
         
-        # 然后执行聚合
+        # 4. Update Global Model
         server.update_global_model()
 
-        # 4. Record training history
+        # 5. Record training history
         losses.append(avg_loss)
         accuracies.append(avg_acc)
         print(
@@ -76,7 +96,8 @@ def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epoch
             'n_silos': n_silos,
             'n_users': n_users,
             'batch_size': batch_size,
-            'learning_rate': learning_rate,
+            'local_learning_rate': local_learning_rate,
+            'global_learning_rate': global_learning_rate,
             'alpha': alpha,
             'mode': mode
         }
@@ -84,43 +105,64 @@ def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epoch
 
     # Save as .pth file
     os.makedirs("record/record_output", exist_ok=True)
-    filename = f"record/record_output/fedavg_s{n_silos}_u{n_users}_i{iters}_e{local_epochs}_b{batch_size}_lr{learning_rate}_a{alpha}_{mode}_{is_secure}.pth"
+    filename = f"record/record_output/fedavg_s{n_silos}_u{n_users}_i{iters}_e{local_epochs}_b{batch_size}_glr{global_learning_rate}_llr{local_learning_rate}_a{alpha}_{mode}_{is_secure}.pth"
     torch.save(record, filename)
 
 
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='FedAvg')
-    parser.add_argument('--dataset', type=str, default='mnist', help='Dataset name')
+    
+    # Basic
     parser.add_argument('--n_silos', type=int, default=10, help='Number of silos')
     parser.add_argument('--n_users', type=int, default=300, help='Number of users')
+
+    # Data Divide
+    parser.add_argument('--dataset', type=str, default=['mnist','heart_disease','tcga_brca','creditcard'], help='Dataset name')
     parser.add_argument('--seed', type=int, default=1, help='Random seed')
     parser.add_argument('--alpha', type=float, default=0.05, help='Alpha parameter')
+    parser.add_argument('--distribute_mode', type=str, default='zipf', help='Distribution mode')
+
+    # FL
     parser.add_argument('--iters', type=int, default=20, help='FL iterations')
     parser.add_argument('--local_epoch', type=int, default=5, help='Local epochs')
     parser.add_argument('--batch_size', type=int, default=256, help='Batch size')
-    parser.add_argument('--learning_rate', type=float, default=0.1, help='Learning rate')
-    parser.add_argument('--distribute_mode', type=str, default='zipf', help='Distribution mode')
-    parser.add_argument('--epsilon', type=float, default=50.0, help='Epsilon parameter')
+    parser.add_argument('--q_for_batch_size', type=float, default=0.1, help='q for batch size')
+    parser.add_argument('--local_learning_rate', type=float, default=0.1, help='Local Learning rate')
+    parser.add_argument('--global_learning_rate', type=float, default=0.1, help='Global Learning rate')
+    parser.add_argument('--weighting_mode', type=str, default='', help='Weighting mode')
+    parser.add_argument('--is_clip', type=bool, default=False, help='Clip User Data')
+    
+    # DP
+    parser.add_argument('--is_secure', type=str, choices=['cldp', 'uldp', 'ndp'], default='ndp', help='Available Differential Privacy')
+    parser.add_argument('--epsilon', type=float, default=1.0, help='Epsilon parameter')
     parser.add_argument('--delta', type=float, default=1e-5, help='Delta parameter')
     parser.add_argument('--max_grad_norm', type=float, default=1.2, help='Max gradient norm')
-    parser.add_argument('--q_for_batch_size', type=float, default=0.1, help='q for batch size')
-    parser.add_argument('--is_secure', type=str, choices=['dp', 'ndp'], default='ndp', help='Available Differential Privacy')
     
     args = parser.parse_args()
     
-    dataset_name = args.dataset
-    batch_size = args.batch_size
-    iters = args.iters
-    local_epoch = args.local_epoch
-    distribute_mode = args.distribute_mode
-    is_secure = args.is_secure
-    learning_rate = args.learning_rate
+    # Basic
     n_silos = args.n_silos
     n_users = args.n_users
+    
+    # Data Divide
+    dataset_name = args.dataset
     seed = args.seed
     alpha = args.alpha
+    distribute_mode = args.distribute_mode
+    
+    # FL
+    iters = args.iters
+    local_epoch = args.local_epoch
+    batch_size = args.batch_size
     q_for_batch_size = args.q_for_batch_size
+    global_learning_rate = args.global_learning_rate
+    local_learning_rate = args.local_learning_rate
+    weighting_mode = args.weighting_mode
+    is_clip = args.is_clip
+    
+    # DP
+    is_secure = args.is_secure
     epsilon = args.epsilon
     delta = args.delta
     max_grad_norm = args.max_grad_norm
@@ -128,5 +170,22 @@ if __name__ == "__main__":
     model = CNNMnist()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-    fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size,
-                    local_epoch, learning_rate, alpha, distribute_mode, q_for_batch_size, is_secure, epsilon, delta, max_grad_norm, iters)
+    fed_avg(dataset_name, 
+            model, 
+            n_silos, 
+            n_users, 
+            seed, 
+            batch_size,
+            local_epoch, 
+            local_learning_rate, 
+            global_learning_rate,
+            alpha, 
+            distribute_mode, 
+            q_for_batch_size, 
+            is_secure, 
+            is_clip,
+            weighting_mode,
+            epsilon, 
+            delta, 
+            max_grad_norm, 
+            iters)

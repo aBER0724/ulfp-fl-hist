@@ -17,20 +17,17 @@ class Dataset:
         self.silos_weights = []
         self.divide_dataset()
     
-    
     def get_whole_train_data(self):
         """
         Get the whole train data.
         """
         return self.dataset_train
     
-    
     def get_whole_test_data(self):
         """
         Get the whole test data.
         """
         return self.dataset_test
-    
     
     def divide_dataset(self):
         """
@@ -47,8 +44,7 @@ class Dataset:
 
         # Distribute users data to silos
         self.distribute_to_silo()
-
-        
+    
     def distribute_to_user(self, n_data=None):
         """
         Distribute Users data, Uniform, Zipf or Dirichlet.
@@ -93,7 +89,6 @@ class Dataset:
         for indices in self.data_indices_of_user.values():
             np.random.shuffle(indices)
 
-
     def distribute_to_silo(self):
         """
         Distribute Silos data, Uniform, Zipf or Dirichlet.
@@ -124,10 +119,14 @@ class Dataset:
                 self.silos_indices_of_data[silo_id][user_id].append(idx)
             
         # Silo weight list
-        self.silos_weights = [len(silo) for silo in self.silos_indices_of_data.values()]
+        self.silos_weights = []
+        for silo_id, silo_indices in self.silos_indices_of_data.items():
+            silo_weight = 0
+            for user_id, user_indices in silo_indices.items():
+                silo_weight += len(user_indices)
+            self.silos_weights.append(silo_weight)
 
-
-    def get_silo_dataset(self, silo_id):
+    def get_dataset(self, user_data_indices):
         """
         Converting pre-allocated indexes to client-specific datasets.
         
@@ -137,32 +136,33 @@ class Dataset:
         Returns:
             silo_data: silo data
         """
-        # Get silo's data indices list
-        silo_indices = self.silos_indices_of_data[silo_id]
-        
-        silo_data = []
-        
-        for user_id, indices in silo_indices.items():
-            for idx in indices:
-                silo_data.append(idx)
-        
+        data_indices = []
+        for user_id, indices in user_data_indices.items():
+            data_indices.extend(indices)
+            
         # Create subset from list
-        silo_data = torch.utils.data.Subset(self.dataset_train, silo_data)
+        silo_data = torch.utils.data.Subset(self.dataset_train, data_indices)
         
         return silo_data
-
 
     def get_user_histogram(self, silo_id):
         """
         Get the histogram of user's data.
+        Returns:
+            A list where the index corresponds to user_id and the value is the number of samples
         """
-        user_histogram = {}
+        user_histogram = [0] * self.n_users
         
         for user_id, indices in self.silos_indices_of_data[silo_id].items():
             user_histogram[user_id] = len(indices)
             
         return user_histogram
 
+    def get_silos_indices(self, silo_id):
+        """
+        Get the indices of silos.
+        """
+        return self.silos_indices_of_data[silo_id]
 
     def get_silos_weights(self):
         """
@@ -170,3 +170,8 @@ class Dataset:
         """
         return self.silos_weights
 
+    def get_user_number(self):
+        """
+        Get the number of users.
+        """
+        return self.n_users

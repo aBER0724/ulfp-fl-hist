@@ -61,15 +61,16 @@ def analyze_distributions(data_indices_of_user, data_indices_of_silo, dataset_tr
             Plot the distribution of users and labels for each silo
             """
             n_silos = len(silo_datasets)
-            rows = (n_silos + 1) // 2
-            plt.figure(figsize=(24, 8 * rows))
+            silos_per_row = 4  # Increased from 2 to 4 silos per row
+            rows = (n_silos + silos_per_row - 1) // silos_per_row
+            plt.figure(figsize=(24, 6 * rows))  # Adjusted height per row
 
             for silo_idx, silo_id in enumerate(silo_datasets.keys()):
-                row = silo_idx // 2
-                col_base = (silo_idx % 2) * 2
+                row = silo_idx // silos_per_row
+                col_base = (silo_idx % silos_per_row) * 2
 
                 # User distribution subplot
-                plt.subplot(rows, 4, row*4 + col_base + 1)
+                plt.subplot(rows, silos_per_row * 2, row * silos_per_row * 2 + col_base + 1)
                 user_counts = silo_user_distributions[silo_id]
                 top_users = sorted(user_counts.items(),
                                 key=lambda x: x[1], reverse=True)[:10]
@@ -83,7 +84,7 @@ def analyze_distributions(data_indices_of_user, data_indices_of_silo, dataset_tr
                 plt.xticks(rotation=45)
 
                 # Label distribution subplot
-                plt.subplot(rows, 4, row*4 + col_base + 2)
+                plt.subplot(rows, silos_per_row * 2, row * silos_per_row * 2 + col_base + 2)
                 label_dist = silo_label_distributions[silo_id]
                 labels = sorted(label_dist.keys())
                 counts = [label_dist[l] for l in labels]
@@ -126,7 +127,7 @@ def analyze_distributions(data_indices_of_user, data_indices_of_silo, dataset_tr
             sns.heatmap(df_users, 
                     annot=True,  # Keep the numerical annotations
                     fmt='.1f',   # Keep one decimal place
-                    cmap='Purples',  # Change the color scheme to viridis, a perceptually uniform color scheme
+                    cmap='Reds',  # Change the color scheme to viridis, a perceptually uniform color scheme
                     annot_kws={'size': 6, 'color': 'white'},  # Change the text color to white, making it easier to see in dark areas
                     cbar_kws={'label': 'Percentage (%)'})
             
