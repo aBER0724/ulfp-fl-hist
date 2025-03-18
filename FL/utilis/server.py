@@ -3,20 +3,27 @@ import torch
 
 
 class Server:
-    def __init__(self, database, global_model, global_learning_rate, train_mode):
+    def __init__(self, dataset, global_model, global_learning_rate, train_mode):
         self.model = copy.deepcopy(global_model)
         self.silo_weights = []
         self.silos_model_list = []
         self.global_learning_rate = global_learning_rate
         self.train_mode = train_mode
+        self.dataset = dataset  # Add reference to dataset
         
     def get_model(self):
         """
         Get the global model.
         """
         return self.model
-    
+
     def receive_silos_model(self, channel_server_to_silos):
+        """
+        Receive the silos model list.
+        """
+        self.silos_model_list = channel_server_to_silos
+    
+    def receive_silos_histogram(self, channel_server_to_silos):
         """
         Receive the silos model list.
         """
@@ -35,22 +42,34 @@ class Server:
         Server aggregates silos model params and update global model with weighted average.
         """
         global_params = self.model.state_dict()
-        total_weight = 0
 
-        aggregated_params = {key: torch.zeros_like(global_params[key])
-                            for key in global_params}
+        # Initialize aggregated params with global model params
+        aggregated_params = copy.deepcopy(global_params)
 
         with torch.no_grad():
-
+            # Check which keys are common to all models
+            common_keys = set(global_params.keys())
             for model in self.silos_model_list:
                 model_params = model.state_dict()
-
-                for key in aggregated_params:
+                common_keys = common_keys.intersection(set(model_params.keys()))
+            
+            print(f"Common keys for aggregation: {common_keys}")
+            
+            # Only aggregate using the common keys
+            for key in common_keys:
+                # Start with zeros
+                aggregated_params[key] = torch.zeros_like(global_params[key])
+                
+                # Aggregate from each silo model
+                for model in self.silos_model_list:
+                    model_params = model.state_dict()
                     aggregated_params[key] -= self.global_learning_rate * model_params[key]
-            for key in aggregated_params: 
-                if self.train_mode == 'uldp': # 1/|U||S|
+                
+                # Average the updates
+                if self.train_mode == 'uldp':  # 1/|U||S|
                     aggregated_params[key] /= self.dataset.get_user_number() * len(self.silos_model_list)
-                else: # 1/|S|
+                else:  # 1/|S|
                     aggregated_params[key] /= len(self.silos_model_list)
 
+        # Load the aggregated parameters back to the global model
         self.model.load_state_dict(aggregated_params)

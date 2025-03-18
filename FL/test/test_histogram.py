@@ -27,8 +27,8 @@ if __name__ == "__main__":
 
 	dataset = Dataset(dataset_name, n_silos, n_users, alpha, seed, distribute_mode, max_samples=max_samples)
 
-	server = Server(dataset, model)
-	silos = [Silo(i, dataset, model, learning_rate, q_for_batch_size, local_epoch, is_secure, epsilon, delta, max_grad_norm) for i in range(n_silos)]
+	server = Server(dataset, model, learning_rate, is_secure)
+	silos = [Silo(i, server, dataset, model, learning_rate, q_for_batch_size, local_epoch, is_secure, False, epsilon, delta, max_grad_norm) for i in range(n_silos)]
     
 	for silo in silos:
 		print(silo.get_user_histogram())

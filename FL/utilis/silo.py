@@ -54,12 +54,6 @@ class Silo:
         Get the histogram of user's data.
         """
         return self.user_histogram
-
-    def send_user_histogram(self):
-        """
-        Send the histogram of user's data to the server.
-        """
-        return self.user_histogram
     
     def receive_user_histogram(self, sumed_user_histogram):
         """
@@ -143,35 +137,35 @@ class Silo:
         else:
             avg_loss, avg_acc = self.train(self.model, self.train_loader)
 
-        # 根据训练模式计算模型更新
-        with torch.no_grad():
-            if self.train_mode == 'uldp': # sum(delta)
-                for key in original_model.state_dict():
-                    delta_t[key] = torch.zeros_like(original_model.state_dict()[key])
-                    for i, user_model in enumerate(user_model_list):
-                        user_delta = user_model.state_dict()[key] - original_model.state_dict()[key]
-                        user_delta = user_delta * self.user_weight_list[i]
-                        delta_t[key] += user_delta
-            else:
-                for key in original_model.state_dict():
-                    delta_t[key] = self.model.state_dict()[key] - original_model.state_dict()[key]
+        # # 根据训练模式计算模型更新
+        # with torch.no_grad():
+        #     if self.train_mode == 'uldp': # sum(delta)
+        #         for key in original_model.state_dict():
+        #             delta_t[key] = torch.zeros_like(original_model.state_dict()[key])
+        #             for i, user_model in enumerate(user_model_list):
+        #                 user_delta = user_model.state_dict()[key] - original_model.state_dict()[key]
+        #                 user_delta = user_delta * self.user_weight_list[i]
+        #                 delta_t[key] += user_delta
+        #     else:
+        #         for key in original_model.state_dict():
+        #             delta_t[key] = self.model.state_dict()[key] - original_model.state_dict()[key]
 
-        # 裁剪Δ_t
-        clipped_delta_t = {}
-        if self.train_mode != 'ndp':
-            norm = torch.norm(torch.cat([p.flatten() for p in delta_t.values()]))
-            clipping_factor = min(1, self.max_grad_norm / (norm + 1e-10))
+        # # 裁剪Δ_t
+        # clipped_delta_t = {}
+        # if self.train_mode != 'ndp':
+        #     norm = torch.norm(torch.cat([p.flatten() for p in delta_t.values()]))
+        #     clipping_factor = min(1, self.max_grad_norm / (norm + 1e-10))
             
-            for key in delta_t:
-                clipped_delta_t[key] = delta_t[key] * clipping_factor
+        #     for key in delta_t:
+        #         clipped_delta_t[key] = delta_t[key] * clipping_factor
                 
-            # 添加噪声得到Δ_t'
-            if self.train_mode == 'cldp' or self.train_mode == 'uldp':
-                for key in clipped_delta_t:
-                    noise = torch.randn_like(clipped_delta_t[key]) * self.sigma * self.max_grad_norm
-                    clipped_delta_t[key] = clipped_delta_t[key] + noise
-        else:
-            clipped_delta_t = delta_t
+        #     # 添加噪声得到Δ_t'
+        #     if self.train_mode == 'cldp' or self.train_mode == 'uldp':
+        #         for key in clipped_delta_t:
+        #             noise = torch.randn_like(clipped_delta_t[key]) * self.sigma * self.max_grad_norm
+        #             clipped_delta_t[key] = clipped_delta_t[key] + noise
+        # else:
+        #     clipped_delta_t = delta_t
 
         return avg_loss, avg_acc
 
