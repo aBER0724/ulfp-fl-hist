@@ -137,9 +137,9 @@ class Dataset:
             silo_data: silo data
         """
         data_indices = []
-        for user_id, indices in user_data_indices.items():
-            data_indices.extend(indices)
-            
+        for user_indices in user_data_indices:
+            data_indices.append(user_indices)
+        
         # Create subset from list
         silo_data = torch.utils.data.Subset(self.dataset_train, data_indices)
         

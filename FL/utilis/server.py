@@ -53,23 +53,24 @@ class Server:
                 model_params = model.state_dict()
                 common_keys = common_keys.intersection(set(model_params.keys()))
             
-            print(f"Common keys for aggregation: {common_keys}")
-            
             # Only aggregate using the common keys
             for key in common_keys:
-                # Start with zeros
-                aggregated_params[key] = torch.zeros_like(global_params[key])
+                # Start with the global model parameters
+                aggregated_params[key] = global_params[key]
                 
-                # Aggregate from each silo model
+                # Sum updates from each silo model (FedAvg)
+                total_update = torch.zeros_like(global_params[key])
                 for model in self.silos_model_list:
                     model_params = model.state_dict()
-                    aggregated_params[key] -= self.global_learning_rate * model_params[key]
+                    # Calculate the update as the difference between local and global
+                    update = model_params[key] - global_params[key]
+                    total_update += update
                 
-                # Average the updates
+                # Average the updates and apply with learning rate
                 if self.train_mode == 'uldp':  # 1/|U||S|
-                    aggregated_params[key] /= self.dataset.get_user_number() * len(self.silos_model_list)
+                    aggregated_params[key] += self.global_learning_rate * (total_update / (self.dataset.get_user_number() * len(self.silos_model_list)))
                 else:  # 1/|S|
-                    aggregated_params[key] /= len(self.silos_model_list)
+                    aggregated_params[key] += self.global_learning_rate * (total_update / len(self.silos_model_list))
 
         # Load the aggregated parameters back to the global model
         self.model.load_state_dict(aggregated_params)

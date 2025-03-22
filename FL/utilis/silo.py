@@ -8,34 +8,53 @@ from FL.utilis.sampling import get_data_loaders_uniform_without_replace
 
 
 class Silo:
-    def __init__(self, silo_id, server, dataset, model, learning_rate, q_for_batch_size, epoch_num, is_secure='ndp', is_clip=False, epsilon=5.0, delta=1e-5, sigma=1.1, max_grad_norm=1.2, max_data_number=1000):
+    def __init__(self, silo_id, server, dataset, model, learning_rate, q_for_batch_size, epoch_num, is_secure='ndp', is_clip=False, epsilon=5.0, delta=1e-5, sigma=1.1, max_grad_norm=3.0, max_data_number=1000):
         self.id = silo_id
         self.server = server
         self.model = copy.deepcopy(model)
-        self.optimizer = torch.optim.SGD(self.model.parameters(), lr=learning_rate)
+        self.optimizer = torch.optim.SGD(
+            self.model.parameters(), lr=learning_rate)
         self.criterion = nn.CrossEntropyLoss()
         self.silo_data_indices = dataset.get_silos_indices(silo_id)
-        self.silo_data = dataset.get_dataset(self.silo_data_indices)
         self.user_histogram = dataset.get_user_histogram(silo_id)
         self.user_weight_list = [1 for _ in range(len(self.user_histogram))]
         self.epoch_num = epoch_num
         self.learning_rate = learning_rate
-        self.minibatch_size = math.floor(len(self.silo_data) * q_for_batch_size)  # data -> mini_batch
-        self.microbatch_size = 1  # mini_batch -> micro_batch
         self.iterations = 1
-        self.minibatch_loader, self.microbatch_loader = get_data_loaders_uniform_without_replace(
-            self.minibatch_size, self.microbatch_size, self.iterations)
-        self.train_loader = self.minibatch_loader(self.silo_data)
         self.acc_list = []
         self.loss_list = []
         self.device = torch.device(
             "cuda" if torch.cuda.is_available() else "cpu")
         self.train_mode = is_secure
-        self.max_grad_norm = max_grad_norm  # 裁剪阈值
+        self.max_grad_norm = max_grad_norm
         self.epsilon = epsilon
         self.delta = delta
-        self.sigma = sigma      # 噪声参数
-        self.dataset = dataset  # 保存dataset引用
+        self.sigma = sigma
+        self.dataset = dataset
+
+        indices_arr = []
+        for user_id, data in self.silo_data_indices.items():
+            indices_arr.extend(data)
+
+        self.silo_data = dataset.get_dataset(indices_arr)
+        self.microbatch_size = 1  # mini_batch -> micro_batch
+        self.minibatch_size = math.floor(
+            len(self.silo_data) * q_for_batch_size)  # data -> mini_batch
+        self.minibatch_loader, self.microbatch_loader = get_data_loaders_uniform_without_replace(
+            self.minibatch_size, self.microbatch_size, self.iterations)
+        self.train_loader = self.minibatch_loader(self.silo_data)
+
+        if self.train_mode == 'cldp':
+            privacy_engine = PrivacyEngine()
+            self.model, self.optimizer, self.train_loader = privacy_engine.make_private_with_epsilon(
+                module=self.model,
+                optimizer=self.optimizer,
+                data_loader=self.train_loader,
+                epochs=self.epoch_num,
+                target_epsilon=self.epsilon,
+                target_delta=self.delta,
+                max_grad_norm=self.max_grad_norm,
+            )
 
     def get_model(self):
         """
@@ -54,14 +73,14 @@ class Silo:
         Get the histogram of user's data.
         """
         return self.user_histogram
-    
+
     def receive_user_histogram(self, sumed_user_histogram):
         """
         Get the weight of the user.
         """
         for i in range(len(sumed_user_histogram)):
             self.user_weight_list[i] = self.user_histogram[i] / sumed_user_histogram[i]
-            
+    
         return self.user_weight_list
 
     def clip_user_data(self, max_data_number):
@@ -80,101 +99,64 @@ class Silo:
             avg_epoch_acc: Average accuracy of all silos
         """
         original_model = copy.deepcopy(global_model)
-        
-        # For CLDP, we need to initialize our model and optimizer properly
-        if self.train_mode == 'cldp':
-            self.model = copy.deepcopy(global_model)
-            self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.learning_rate)
-            
-            privacy_engine = PrivacyEngine()
-            
-            # Make the model and optimizer private with Opacus
-            self.model, self.optimizer, self.train_loader = privacy_engine.make_private_with_epsilon(
-                module=self.model,
-                optimizer=self.optimizer,
-                data_loader=self.train_loader,
-                epochs=self.epoch_num,
-                target_epsilon=self.epsilon,
-                target_delta=self.delta,
-                max_grad_norm=self.max_grad_norm,
-            )
-        else:
-            self.model = copy.deepcopy(global_model)
-        
-        # 初始化变量
         total_loss = 0
         total_acc = 0
         avg_loss = 0
         avg_acc = 0
-        delta_t = {}
 
         if self.train_mode == 'uldp':
-            self.model.load_state_dict(copy.deepcopy(self.model.state_dict()))
-
-            # 获取用户列表
             users = self.silo_data_indices
-            device = self.device
-            user_model_list = [copy.deepcopy(self.model) for _ in range(len(users))]
+            user_model_list = [copy.deepcopy(self.model)
+                               for _ in range(len(users))]
 
-            # 存储每个用户的更新量
-            for user_id, data_indices in users.items():
-                # 获取用户数据
-                user_data = self.dataset.get_dataset(data_indices)
+            for user_id, user_data_indices in users.items():
+                user_data = self.dataset.get_dataset(user_data_indices)
                 user_loader = torch.utils.data.DataLoader(
                     user_data, batch_size=self.microbatch_size, shuffle=True
                 )
 
-                # 为每个用户创建本地模型副本
                 user_model = user_model_list[user_id]
+                user_optimizer = torch.optim.SGD(
+                    user_model.parameters(), lr=self.learning_rate)
+
                 user_avg_loss, user_avg_acc = self.train(
-                    user_model, user_loader)
+                    user_model, user_loader, user_optimizer)
+
+                print(
+                    f"Silo {self.id}, User {user_id}: Loss = {user_avg_loss:.4f}, Accuracy = {user_avg_acc:.2f}%")
 
                 total_loss += user_avg_loss
                 total_acc += user_avg_acc
 
             avg_loss = total_loss / len(users)
             avg_acc = total_acc / len(users)
+
+            with torch.no_grad():
+                for key in self.model.state_dict():
+                    self.model.state_dict()[key].copy_(
+                        original_model.state_dict()[key])
+
+                    for i, user_model in enumerate(user_model_list):
+                        update = user_model.state_dict(
+                        )[key] - original_model.state_dict()[key]
+                        update = update * self.user_weight_list[i]
+                        self.model.state_dict()[key] += update
         else:
-            avg_loss, avg_acc = self.train(self.model, self.train_loader)
-
-        # # 根据训练模式计算模型更新
-        # with torch.no_grad():
-        #     if self.train_mode == 'uldp': # sum(delta)
-        #         for key in original_model.state_dict():
-        #             delta_t[key] = torch.zeros_like(original_model.state_dict()[key])
-        #             for i, user_model in enumerate(user_model_list):
-        #                 user_delta = user_model.state_dict()[key] - original_model.state_dict()[key]
-        #                 user_delta = user_delta * self.user_weight_list[i]
-        #                 delta_t[key] += user_delta
-        #     else:
-        #         for key in original_model.state_dict():
-        #             delta_t[key] = self.model.state_dict()[key] - original_model.state_dict()[key]
-
-        # # 裁剪Δ_t
-        # clipped_delta_t = {}
-        # if self.train_mode != 'ndp':
-        #     norm = torch.norm(torch.cat([p.flatten() for p in delta_t.values()]))
-        #     clipping_factor = min(1, self.max_grad_norm / (norm + 1e-10))
-            
-        #     for key in delta_t:
-        #         clipped_delta_t[key] = delta_t[key] * clipping_factor
-                
-        #     # 添加噪声得到Δ_t'
-        #     if self.train_mode == 'cldp' or self.train_mode == 'uldp':
-        #         for key in clipped_delta_t:
-        #             noise = torch.randn_like(clipped_delta_t[key]) * self.sigma * self.max_grad_norm
-        #             clipped_delta_t[key] = clipped_delta_t[key] + noise
-        # else:
-        #     clipped_delta_t = delta_t
+            self.model = copy.deepcopy(global_model)
+            self.optimizer = torch.optim.SGD(
+                self.model.parameters(), lr=self.learning_rate)
+            avg_loss, avg_acc = self.train(
+                self.model, self.train_loader, self.optimizer)
 
         return avg_loss, avg_acc
 
-    def train(self, model, train_loader):
+    def train(self, model, train_loader, optimizer=None):
         """
         Local training with noise addition
         Args:
             model: Model
             train_loader: Training data loader
+            optimizer: Optional custom optimizer
         Returns:
             train_loss: Average training loss
             train_acc: Average training accuracy
@@ -183,14 +165,17 @@ class Silo:
         total_loss = 0.0
         total_acc = 0.0
 
+        if optimizer is None:
+            optimizer = self.optimizer
+
         for epoch in range(self.epoch_num):
             epoch_loss = 0.0
             epoch_correct = 0
             epoch_samples = 0
-            
+
             for id, (data, target) in enumerate(train_loader):
                 # Empty the gradient
-                self.optimizer.zero_grad()
+                optimizer.zero_grad()
 
                 # Move the data to the correct device (CPU/GPU)
                 data = data.to(self.device, dtype=torch.float32)
@@ -202,9 +187,9 @@ class Silo:
 
                 # Backward propagation
                 loss.backward()
-                
+
                 # Step the optimizer
-                self.optimizer.step()
+                optimizer.step()
 
                 # Accumulate the loss
                 epoch_loss += loss.item()
