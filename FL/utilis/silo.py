@@ -170,7 +170,7 @@ class Silo:
             with torch.no_grad():
                 for key in self.model.state_dict():
 
-                    # self.model.state_dict()[key].copy_(original_model.state_dict()[key])
+                    self.model.state_dict()[key].copy_(original_model.state_dict()[key])
                     
                     aggregated_update = torch.zeros_like(self.model.state_dict()[key])
                     for update in user_updates:
