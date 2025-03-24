@@ -26,7 +26,7 @@ class Silo:
         self.device = torch.device(
             "cuda" if torch.cuda.is_available() else "cpu")
         self.train_mode = is_secure
-        self.max_grad_norm = max_grad_norm
+        self.max_grad_norm = max_grad_norm # C
         self.epsilon = epsilon
         self.delta = delta
         self.sigma = sigma
@@ -43,18 +43,6 @@ class Silo:
         self.minibatch_loader, self.microbatch_loader = get_data_loaders_uniform_without_replace(
             self.minibatch_size, self.microbatch_size, self.iterations)
         self.train_loader = self.minibatch_loader(self.silo_data)
-
-        if self.train_mode == 'cldp':
-            privacy_engine = PrivacyEngine()
-            self.model, self.optimizer, self.train_loader = privacy_engine.make_private_with_epsilon(
-                module=self.model,
-                optimizer=self.optimizer,
-                data_loader=self.train_loader,
-                epochs=self.epoch_num,
-                target_epsilon=self.epsilon,
-                target_delta=self.delta,
-                max_grad_norm=self.max_grad_norm,
-            )
 
     def get_model(self):
         """
@@ -80,7 +68,7 @@ class Silo:
         """
         for i in range(len(sumed_user_histogram)):
             self.user_weight_list[i] = self.user_histogram[i] / sumed_user_histogram[i]
-    
+
         return self.user_weight_list
 
     def clip_user_data(self, max_data_number):
@@ -103,6 +91,18 @@ class Silo:
         total_acc = 0
         avg_loss = 0
         avg_acc = 0
+
+        if self.train_mode == 'cldp':
+            privacy_engine = PrivacyEngine()
+            self.model, self.optimizer, self.train_loader = privacy_engine.make_private_with_epsilon(
+                module=self.model,
+                optimizer=self.optimizer,
+                data_loader=self.train_loader,
+                epochs=self.epoch_num,
+                target_epsilon=self.epsilon,
+                target_delta=self.delta,
+                max_grad_norm=self.max_grad_norm,
+            )
 
         if self.train_mode == 'uldp':
             users = self.silo_data_indices
@@ -131,16 +131,64 @@ class Silo:
             avg_loss = total_loss / len(users)
             avg_acc = total_acc / len(users)
 
+            # Update the model with the weighted average of the user's models
+            # with torch.no_grad():
+            #     for key in self.model.state_dict():
+            #         self.model.state_dict()[key].copy_(
+            #             original_model.state_dict()[key])
+
+            #         for i, user_model in enumerate(user_model_list):
+            #             update = user_model.state_dict()[key] - original_model.state_dict()[key]
+            #             update = update * self.user_weight_list[i]
+                        
+            #             self.model.state_dict()[key] += update
+
+            user_updates = []
+            
+            for i, user_model in enumerate(user_model_list):
+                user_update = {}
+                for key in user_model.state_dict():
+                    # \delta^{s,u}_t = x^{s,u}_t - x_t
+                    delta = user_model.state_dict()[key] - original_model.state_dict()[key]
+                    
+                    # \delta^{s,u}_t * w_{s,u}
+                    weighted_delta = delta * self.user_weight_list[i]
+                    
+                    # Clipping
+                    if torch.is_tensor(weighted_delta) and weighted_delta.numel() > 0:
+                        norm = torch.norm(weighted_delta.flatten(), p=2)
+                        
+                        # min(1, C/||\delta^{s,u}_t||_2))
+                        if norm > 0:
+                            clip_factor = min(1.0, self.max_grad_norm / norm)
+                            weighted_delta = weighted_delta * clip_factor
+                    
+                    user_update[key] = weighted_delta
+                user_updates.append(user_update)
+                
+            # Update the model with the weighted average of the user's models
             with torch.no_grad():
                 for key in self.model.state_dict():
-                    self.model.state_dict()[key].copy_(
-                        original_model.state_dict()[key])
 
-                    for i, user_model in enumerate(user_model_list):
-                        update = user_model.state_dict(
-                        )[key] - original_model.state_dict()[key]
-                        update = update * self.user_weight_list[i]
-                        self.model.state_dict()[key] += update
+                    # self.model.state_dict()[key].copy_(original_model.state_dict()[key])
+                    
+                    aggregated_update = torch.zeros_like(self.model.state_dict()[key])
+                    for update in user_updates:
+                        if key in update:
+                            aggregated_update += update[key]
+                    
+                    # Add noise N(0, I \sigma^2 C^2/|S|)
+                    if torch.is_tensor(aggregated_update) and aggregated_update.numel() > 0:
+                        noise_scale = self.sigma * self.max_grad_norm / math.sqrt(len(users))
+                        noise = torch.normal(
+                            mean=0,
+                            std=noise_scale,
+                            size=aggregated_update.shape,
+                            device=aggregated_update.device
+                        )
+                        # aggregated_update += noise
+                    
+                    self.model.state_dict()[key] += aggregated_update
         else:
             self.model = copy.deepcopy(global_model)
             self.optimizer = torch.optim.SGD(
