@@ -6,8 +6,11 @@ import re
 
 # Change to the directory containing the script
 script_dir = os.path.dirname(os.path.abspath(__file__))
-# Get all .pth files from record_output directory
-pth_files = glob.glob(os.path.join(script_dir, "record_output", "fedavg_*.pth"))
+# Get all .pth files from all output_* directories
+pth_files = []
+output_dirs = glob.glob(os.path.join(script_dir, "output_*"))
+for output_dir in output_dirs:
+    pth_files.extend(glob.glob(os.path.join(output_dir, "*.pth")))
 
 # Create a figure
 plt.figure(figsize=(30, 10))
@@ -72,7 +75,7 @@ for idx, (local_epochs, files_params) in enumerate(grouped_by_epochs.items()):
         record = torch.load(pth_file)
         
         # Create a label with relevant parameters
-        label = f'E={local_epochs}, Mode={params["mode"]}'
+        label = f'Silo={params["n_silos"]}, User={params["n_users"]}, Iters={params["iters"]}, E={local_epochs}, Mode={params["mode"]}'
         if params["train_mode"] != '':
             label += f'_{params["train_mode"]}'
         
@@ -99,7 +102,7 @@ for idx, (local_epochs, files_params) in enumerate(grouped_by_epochs.items()):
         record = torch.load(pth_file)
         
         # Create a label with relevant parameters
-        label = f'E={local_epochs}, Mode={params["mode"]}'
+        label = f'Silo={params["n_silos"]}, User={params["n_users"]}, Iters={params["iters"]}, E={local_epochs}, Mode={params["mode"]}'
         if params["train_mode"] != '':
             label += f'_{params["train_mode"]}'
         
