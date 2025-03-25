@@ -3,16 +3,19 @@ import os
 import torch.utils.data
 import torch.nn as nn
 import argparse
+import time
+from datetime import datetime
 from model.CNN import CNNMnist
 from FL.utilis.silo import Silo
 from FL.utilis.server import Server
 from FL.utilis.dataset import Dataset
+from FL.test.test_histogram import visualize_histograms
 
 EPSILON = 5.0
 DELTA = 1e-5
 MAX_GRAD_NORM = 1.2
 
-def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epochs, local_learning_rate, global_learning_rate, alpha, mode, q_for_batch_size, is_secure, is_clip, weighting_mode, epsilon, delta, max_grad_norm, iters=10):
+def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epochs, local_learning_rate, global_learning_rate, alpha, mode, q_for_batch_size, is_secure, is_clip, is_histogram_secure, weighting_mode, epsilon, histogram_epsilon, delta, max_grad_norm, iters=10):
     """
     Params:
         dataset_name: Dataset Name
@@ -29,9 +32,9 @@ def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epoch
     dataset = Dataset(dataset_name, n_silos, n_users, alpha, seed, mode)
     
     server = Server(dataset, model, global_learning_rate, is_secure)
-    silos = [Silo(i, server, dataset, model, local_learning_rate, q_for_batch_size, local_epochs, is_secure, is_clip, epsilon, delta, max_grad_norm) for i in range(n_silos)]
+    silos = [Silo(i, server, dataset, model, local_learning_rate, q_for_batch_size, local_epochs, is_secure, is_clip, is_histogram_secure, epsilon, histogram_epsilon, delta, max_grad_norm) for i in range(n_silos)]
     
-    print("================COMPUTE USER WEIGHT================")
+    print("================COMPUTE USER WEIGHT START================")
     
     channel_silos_to_server = []
     
@@ -48,6 +51,16 @@ def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epoch
     # Silos receive user histogram from server
     for i in range(n_silos):
         silos[i].receive_user_histogram(channel_server_to_silos[i])
+    
+    # Visualize histograms if histogram security is enabled
+    if is_histogram_secure:
+        # Create timestamp-based directory for this run's visualizations
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        viz_output_dir = f"record/histogram_viz_{timestamp}_s{n_silos}_u{n_users}_{is_secure}"
+        visualize_histograms(silos, output_dir=viz_output_dir)
+        print(f"Histogram visualizations saved to {viz_output_dir}")
+    
+    print("=============COMPUTE USER WEIGHT FINISHED==============")
     
 
     print(f"====================FL START===================")
@@ -112,10 +125,16 @@ def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epoch
         }
     }
 
-    # Save as .pth file
-    os.makedirs("record/record_output", exist_ok=True)
-    filename = f"record/record_output/fedavg_s{n_silos}_u{n_users}_i{iters}_e{local_epochs}_b{batch_size}_glr{global_learning_rate}_llr{local_learning_rate}_a{alpha}_{mode}_{is_secure}.pth"
+    # Create a unique directory for this training run
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_dir = f"record/output_{timestamp}_s{n_silos}_u{n_users}_e{local_epochs}_{is_secure}"
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Save as .pth file in the unique directory
+    filename = f"{output_dir}/fedavg_s{n_silos}_u{n_users}_i{iters}_e{local_epochs}_b{batch_size}_glr{global_learning_rate}_llr{local_learning_rate}_a{alpha}_{mode}_{is_secure}.pth"
     torch.save(record, filename)
+    
+    print(f"Training results saved to: {output_dir}")
 
 
 if __name__ == "__main__":
@@ -144,7 +163,9 @@ if __name__ == "__main__":
     
     # DP
     parser.add_argument('--is_secure', type=str, choices=['cldp', 'uldp', 'ndp'], default='ndp', help='Available Differential Privacy')
+    parser.add_argument('--is_histogram_secure', type=bool, default=False, help='Histogram Differential Privacy')
     parser.add_argument('--epsilon', type=float, default=5.0, help='Epsilon parameter')
+    parser.add_argument('--histogram_epsilon', type=float, default=1.0, help='Histogram Epsilon parameter')
     parser.add_argument('--delta', type=float, default=1e-5, help='Delta parameter')
     parser.add_argument('--max_grad_norm', type=float, default=1.2, help='Max gradient norm')
     
@@ -172,7 +193,9 @@ if __name__ == "__main__":
     
     # DP
     is_secure = args.is_secure
+    is_histogram_secure = args.is_histogram_secure
     epsilon = args.epsilon
+    histogram_epsilon = args.histogram_epsilon
     delta = args.delta
     max_grad_norm = args.max_grad_norm
     
@@ -193,8 +216,10 @@ if __name__ == "__main__":
             q_for_batch_size, 
             is_secure, 
             is_clip,
+            is_histogram_secure,
             weighting_mode,
             epsilon, 
+            histogram_epsilon, 
             delta, 
             max_grad_norm, 
             iters)

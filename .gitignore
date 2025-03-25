@@ -3,8 +3,8 @@ __pycache__/
 .idea/
 
 datasets/MNIST/raw/
-FL/record/record_output/*.pth
-FL/record/*.png
+record/*/
+record/*.png
 FL/test/test_output/*.png
 FL/record/fedavg_comparison.png
 

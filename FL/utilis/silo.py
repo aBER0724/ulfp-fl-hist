@@ -4,11 +4,12 @@ import torch
 import torch.nn.functional as F
 from opacus import PrivacyEngine
 import torch.nn as nn
+import numpy as np
 from FL.utilis.sampling import get_data_loaders_uniform_without_replace
 
 
 class Silo:
-    def __init__(self, silo_id, server, dataset, model, learning_rate, q_for_batch_size, epoch_num, is_secure='ndp', is_clip=False, epsilon=5.0, delta=1e-5, sigma=1.1, max_grad_norm=3.0, max_data_number=1000):
+    def __init__(self, silo_id, server, dataset, model, learning_rate, q_for_batch_size, epoch_num, is_secure='ndp', is_clip=False, is_histogram_secure=False, epsilon=5.0, histogram_epsilon=1.0, delta=1e-5, sigma=1.1, max_grad_norm=3.0, max_data_number=1000):
         self.id = silo_id
         self.server = server
         self.model = copy.deepcopy(model)
@@ -25,13 +26,14 @@ class Silo:
         self.loss_list = []
         self.device = torch.device(
             "cuda" if torch.cuda.is_available() else "cpu")
-        self.train_mode = is_secure
+        self.train_mode = is_secure # cldp or uldp
+        self.histogram_mode = is_histogram_secure # True or False
         self.max_grad_norm = max_grad_norm # C
         self.epsilon = epsilon
         self.delta = delta
         self.sigma = sigma
         self.dataset = dataset
-
+        self.histogram_epsilon = histogram_epsilon
         indices_arr = []
         for user_id, data in self.silo_data_indices.items():
             indices_arr.extend(data)
@@ -56,11 +58,24 @@ class Silo:
         """
         self.model = copy.deepcopy(global_model)
 
-    def get_user_histogram(self):
+    def histogram_dp(self, user_histogram):
+        """
+        Add noise to the user's histogram.
+        """
+        scale = 1 / self.histogram_epsilon  # sensitivity = 1
+        noise = np.random.laplace(0, scale, size=len(user_histogram))
+        
+        # Use np.maximum to ensure values are non-negative
+        return np.maximum(0, np.round(user_histogram + noise)).astype(int)
+    
+    def get_user_histogram(self, is_secure=True):
         """
         Get the histogram of user's data.
         """
-        return self.user_histogram
+        if is_secure and self.histogram_mode:
+            return self.histogram_dp(self.user_histogram)
+        else:
+            return self.user_histogram
 
     def receive_user_histogram(self, sumed_user_histogram):
         """
@@ -132,63 +147,24 @@ class Silo:
             avg_acc = total_acc / len(users)
 
             # Update the model with the weighted average of the user's models
-            # with torch.no_grad():
-            #     for key in self.model.state_dict():
-            #         self.model.state_dict()[key].copy_(
-            #             original_model.state_dict()[key])
-
-            #         for i, user_model in enumerate(user_model_list):
-            #             update = user_model.state_dict()[key] - original_model.state_dict()[key]
-            #             update = update * self.user_weight_list[i]
-                        
-            #             self.model.state_dict()[key] += update
-
-            user_updates = []
-            
-            for i, user_model in enumerate(user_model_list):
-                user_update = {}
-                for key in user_model.state_dict():
-                    # \delta^{s,u}_t = x^{s,u}_t - x_t
-                    delta = user_model.state_dict()[key] - original_model.state_dict()[key]
-                    
-                    # \delta^{s,u}_t * w_{s,u}
-                    weighted_delta = delta * self.user_weight_list[i]
-                    
-                    # Clipping
-                    if torch.is_tensor(weighted_delta) and weighted_delta.numel() > 0:
-                        norm = torch.norm(weighted_delta.flatten(), p=2)
-                        
-                        # min(1, C/||\delta^{s,u}_t||_2))
-                        if norm > 0:
-                            clip_factor = min(1.0, self.max_grad_norm / norm)
-                            weighted_delta = weighted_delta * clip_factor
-                    
-                    user_update[key] = weighted_delta
-                user_updates.append(user_update)
-                
-            # Update the model with the weighted average of the user's models
             with torch.no_grad():
                 for key in self.model.state_dict():
-
                     self.model.state_dict()[key].copy_(original_model.state_dict()[key])
-                    
-                    aggregated_update = torch.zeros_like(self.model.state_dict()[key])
-                    for update in user_updates:
-                        if key in update:
-                            aggregated_update += update[key]
-                    
-                    # Add noise N(0, I \sigma^2 C^2/|S|)
-                    if torch.is_tensor(aggregated_update) and aggregated_update.numel() > 0:
-                        noise_scale = self.sigma * self.max_grad_norm / math.sqrt(len(users))
-                        noise = torch.normal(
-                            mean=0,
-                            std=noise_scale,
-                            size=aggregated_update.shape,
-                            device=aggregated_update.device
-                        )
-                        # aggregated_update += noise
-                    
-                    self.model.state_dict()[key] += aggregated_update
+
+                    for i, user_model in enumerate(user_model_list):
+                        delta = user_model.state_dict()[key] - original_model.state_dict()[key]
+                        weighted_delta = delta * self.user_weight_list[i]
+                        
+                        # # Clipping
+                        # if torch.is_tensor(weighted_delta) and weighted_delta.numel() > 0:
+                        #     norm = torch.norm(weighted_delta.flatten(), p=2)
+                            
+                        #     # min(1, C/||\delta^{s,u}_t||_2))
+                        #     if norm > 0:
+                        #         clip_factor = min(1.0, self.max_grad_norm / norm)
+                        #         weighted_delta = weighted_delta * clip_factor
+                            
+                        self.model.state_dict()[key] += weighted_delta
         else:
             self.model = copy.deepcopy(global_model)
             self.optimizer = torch.optim.SGD(
