@@ -19,5 +19,9 @@ python FL/test/test_data_distribute.py --plot_type each_silo --distribute_mode d
 ## FedAVG
 
 ```Shell
-python FL/FedAvg.py --dataset mnist --n_silos 10 --n_users 300 --local_epoch 5 --batch_size 256 --global_learning_rate 10.0 --local_learning_rate 0.01 --distribute_mode zipf --alpha 0.05 --iters 20 --is_secure cldp --is_histogram_secure True
+python FL/FedAvg.py --dataset mnist --n_silos 10 --n_users 300 --local_epoch 5 --batch_size 256 --global_learning_rate 10.0 --local_learning_rate 0.01 --distribute_mode zipf --alpha 0.05 --iters 20 --is_secure cldp
+```
+
+```Shell
+python FL/FedAvg.py --dataset mnist --n_silos 10 --n_users 300 --local_epoch 5 --batch_size 256 --global_learning_rate 10.0 --local_learning_rate 0.01 --distribute_mode zipf --alpha 0.05 --iters 20 --is_secure uldp --is_histogram_secure True
 ```

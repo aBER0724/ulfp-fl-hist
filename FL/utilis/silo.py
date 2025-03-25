@@ -156,13 +156,13 @@ class Silo:
                         weighted_delta = delta * self.user_weight_list[i]
                         
                         # # Clipping
-                        # if torch.is_tensor(weighted_delta) and weighted_delta.numel() > 0:
-                        #     norm = torch.norm(weighted_delta.flatten(), p=2)
+                        if torch.is_tensor(weighted_delta) and weighted_delta.numel() > 0:
+                            norm = torch.norm(weighted_delta.flatten(), p=2)
                             
-                        #     # min(1, C/||\delta^{s,u}_t||_2))
-                        #     if norm > 0:
-                        #         clip_factor = min(1.0, self.max_grad_norm / norm)
-                        #         weighted_delta = weighted_delta * clip_factor
+                            # min(1, C/||\delta^{s,u}_t||_2))
+                            if norm > 0:
+                                clip_factor = min(1.0, self.max_grad_norm / norm)
+                                weighted_delta = weighted_delta * clip_factor
                             
                         self.model.state_dict()[key] += weighted_delta
         else:

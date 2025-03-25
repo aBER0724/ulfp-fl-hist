@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 
-def visualize_histograms(silos, output_dir='FL/test/test_output'):
+def visualize_histograms(silos, output_dir='./test_output'):
 	"""
 	Visualize user data histograms for each silo, comparing with and without noise.
 	
@@ -35,24 +35,24 @@ def visualize_histograms(silos, output_dir='FL/test/test_output'):
 		no_noise_values = no_noise_hist
 		with_noise_values = with_noise_hist
 		
-		# Set bar positions
+		# Set bar positions (centered, not offset)
 		x = np.arange(len(user_ids))
-		width = 0.35
+		width = 0.5  # wider bars
 		
-		# Draw bars
-		bars1 = plt.bar(x - width/2, no_noise_values, width, label='Without Noise')
-		bars2 = plt.bar(x + width/2, with_noise_values, width, label='With Noise')
+		# Draw overlapping bars with transparency
+		bars1 = plt.bar(x, no_noise_values, width, label='Without Noise', alpha=0.7, color='#2B75BC')  # blue
+		bars2 = plt.bar(x, with_noise_values, width, label='With Noise', alpha=0.6, color='#FF8C00')  # dark orange
 		
 		# Add data labels on top of each bar
 		for bar in bars1:
 			height = bar.get_height()
 			plt.text(bar.get_x() + bar.get_width()/2., height + 0.1,
-					f'{int(height)}', ha='center', va='bottom', fontsize=8)
+					f'{int(height)}', ha='center', va='bottom', fontsize=8, color='#2B75BC')
 		
 		for bar in bars2:
 			height = bar.get_height()
 			plt.text(bar.get_x() + bar.get_width()/2., height + 0.1,
-					f'{int(height)}', ha='center', va='bottom', fontsize=8)
+					f'{int(height)}', ha='center', va='bottom', fontsize=8, color='#FF8C00')
 		
 		# Add labels and title
 		plt.xlabel('User ID')
@@ -85,21 +85,21 @@ def visualize_histograms(silos, output_dir='FL/test/test_output'):
 		with_noise_values = with_noise_hist
 		
 		x = np.arange(len(user_ids))
-		width = 0.35
+		width = 0.5  # wider bars
 		
-		bars1 = plt.bar(x - width/2, no_noise_values, width, label='Without Noise')
-		bars2 = plt.bar(x + width/2, with_noise_values, width, label='With Noise')
+		bars1 = plt.bar(x, no_noise_values, width, label='Without Noise', alpha=0.7, color='#2B75BC')  # blue
+		bars2 = plt.bar(x, with_noise_values, width, label='With Noise', alpha=0.6, color='#FF8C00')  # dark orange
 		
 		# Add data labels on top of each bar (smaller font for summary plot)
 		for bar in bars1:
 			height = bar.get_height()
 			plt.text(bar.get_x() + bar.get_width()/2., height + 0.1,
-					f'{int(height)}', ha='center', va='bottom', fontsize=6)
+					f'{int(height)}', ha='center', va='bottom', fontsize=6, color='#2B75BC')
 		
 		for bar in bars2:
 			height = bar.get_height()
 			plt.text(bar.get_x() + bar.get_width()/2., height + 0.1,
-					f'{int(height)}', ha='center', va='bottom', fontsize=6)
+					f'{int(height)}', ha='center', va='bottom', fontsize=6, color='#FF8C00')
 		
 		plt.xlabel('User ID')
 		plt.ylabel('Data Count')

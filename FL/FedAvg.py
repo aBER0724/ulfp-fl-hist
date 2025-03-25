@@ -15,7 +15,7 @@ EPSILON = 5.0
 DELTA = 1e-5
 MAX_GRAD_NORM = 1.2
 
-def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epochs, local_learning_rate, global_learning_rate, alpha, mode, q_for_batch_size, is_secure, is_clip, is_histogram_secure, weighting_mode, epsilon, histogram_epsilon, delta, max_grad_norm, iters=10):
+def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epochs, local_learning_rate, global_learning_rate, alpha, mode, q_for_batch_size, is_secure, is_clip, is_histogram_secure, weighting_mode, epsilon, histogram_epsilon, delta, max_grad_norm, max_samples, iters=10):
     """
     Params:
         dataset_name: Dataset Name
@@ -29,7 +29,7 @@ def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epoch
         mode: Distribution Mode, 'uniform', 'zipf' or 'dirichlet'
         iters: Iteration Number(fixd as 10)
     """
-    dataset = Dataset(dataset_name, n_silos, n_users, alpha, seed, mode)
+    dataset = Dataset(dataset_name, n_silos, n_users, alpha, seed, mode, max_samples)
     
     server = Server(dataset, model, global_learning_rate, is_secure)
     silos = [Silo(i, server, dataset, model, local_learning_rate, q_for_batch_size, local_epochs, is_secure, is_clip, is_histogram_secure, epsilon, histogram_epsilon, delta, max_grad_norm) for i in range(n_silos)]
@@ -147,6 +147,7 @@ if __name__ == "__main__":
 
     # Data Divide
     parser.add_argument('--dataset', type=str, default=['mnist','heart_disease','tcga_brca','creditcard'], help='Dataset name')
+    parser.add_argument('--max_samples', type=int, default=None, help='Max samples')
     parser.add_argument('--seed', type=int, default=1, help='Random seed')
     parser.add_argument('--alpha', type=float, default=0.05, help='Alpha parameter')
     parser.add_argument('--distribute_mode', type=str, default='zipf', help='Distribution mode')
@@ -177,6 +178,7 @@ if __name__ == "__main__":
     
     # Data Divide
     dataset_name = args.dataset
+    max_samples = args.max_samples
     seed = args.seed
     alpha = args.alpha
     distribute_mode = args.distribute_mode
@@ -214,6 +216,7 @@ if __name__ == "__main__":
             alpha, 
             distribute_mode, 
             q_for_batch_size, 
+            max_samples,
             is_secure, 
             is_clip,
             is_histogram_secure,
