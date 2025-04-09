@@ -216,7 +216,6 @@ if __name__ == "__main__":
             alpha, 
             distribute_mode, 
             q_for_batch_size, 
-            max_samples,
             is_secure, 
             is_clip,
             is_histogram_secure,
@@ -225,6 +224,7 @@ if __name__ == "__main__":
             histogram_epsilon, 
             delta, 
             max_grad_norm, 
+            max_samples,
             iters,
             device=device
             )

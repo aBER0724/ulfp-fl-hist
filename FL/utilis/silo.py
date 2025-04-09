@@ -122,9 +122,16 @@ class Silo:
             users = self.silo_data_indices
             user_model_list = [copy.deepcopy(self.model)
                                for _ in range(len(users))]
+            valid_user_count = 0
 
             for user_id, user_data_indices in users.items():
                 user_data = self.dataset.get_dataset(user_data_indices)
+                
+                # Skip users with empty datasets
+                if len(user_data) == 0:
+                    print(f"Silo {self.id}, User {user_id}: Skipping - Empty dataset")
+                    continue
+                    
                 user_loader = torch.utils.data.DataLoader(
                     user_data, batch_size=self.microbatch_size, shuffle=True
                 )
@@ -141,9 +148,16 @@ class Silo:
 
                 total_loss += user_avg_loss
                 total_acc += user_avg_acc
+                valid_user_count += 1
 
-            avg_loss = total_loss / len(users)
-            avg_acc = total_acc / len(users)
+            # Avoid division by zero if no valid users
+            if valid_user_count > 0:
+                avg_loss = total_loss / valid_user_count
+                avg_acc = total_acc / valid_user_count
+            else:
+                print(f"Warning: Silo {self.id} has no valid users with data")
+                avg_loss = 0
+                avg_acc = 0
 
             # Update the model with the weighted average of the user's models
             with torch.no_grad():
