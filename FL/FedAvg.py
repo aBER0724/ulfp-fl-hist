@@ -32,7 +32,7 @@ def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epoch
     dataset = Dataset(dataset_name, n_silos, n_users, alpha, seed, mode, max_samples)
     
     server = Server(dataset, model, global_learning_rate, is_secure)
-    silos = [Silo(i, server, dataset, model, local_learning_rate, q_for_batch_size, local_epochs, is_secure, is_clip, is_histogram_secure, epsilon, histogram_epsilon, delta, max_grad_norm, device) for i in range(n_silos)]
+    silos = [Silo(i, server, dataset, model, local_learning_rate, q_for_batch_size, local_epochs, is_secure, is_clip, is_histogram_secure, epsilon, histogram_epsilon, delta, max_grad_norm) for i in range(n_silos)]
     
     print("================COMPUTE USER WEIGHT START================")
     
@@ -202,7 +202,6 @@ if __name__ == "__main__":
     max_grad_norm = args.max_grad_norm
     
     model = CNNMnist()
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     fed_avg(dataset_name, 
             model, 
@@ -225,6 +224,5 @@ if __name__ == "__main__":
             delta, 
             max_grad_norm, 
             max_samples,
-            iters,
-            device=device
+            iters
             )

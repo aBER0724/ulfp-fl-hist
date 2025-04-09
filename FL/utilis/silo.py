@@ -9,7 +9,7 @@ from FL.utilis.sampling import get_data_loaders_uniform_without_replace
 
 
 class Silo:
-    def __init__(self, silo_id, server, dataset, model, learning_rate, q_for_batch_size, epoch_num, is_secure='ndp', is_clip=False, is_histogram_secure=False, epsilon=5.0, histogram_epsilon=1.0, delta=1e-5, sigma=1.1, max_grad_norm=3.0, max_data_number=1000, device='cpu'):
+    def __init__(self, silo_id, server, dataset, model, learning_rate, q_for_batch_size, epoch_num, is_secure='ndp', is_clip=False, is_histogram_secure=False, epsilon=5.0, histogram_epsilon=1.0, delta=1e-5, sigma=1.1, max_grad_norm=3.0, max_data_number=1000):
         self.id = silo_id
         self.server = server
         self.model = copy.deepcopy(model)
@@ -24,7 +24,8 @@ class Silo:
         self.iterations = 1
         self.acc_list = []
         self.loss_list = []
-        self.device = device
+        self.device = torch.device(
+            "cuda" if torch.cuda.is_available() else "cpu")
         self.train_mode = is_secure # cldp or uldp
         self.histogram_mode = is_histogram_secure # True or False
         self.max_grad_norm = max_grad_norm # C
