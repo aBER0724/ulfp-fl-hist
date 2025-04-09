@@ -13,6 +13,8 @@ class Silo:
         self.id = silo_id
         self.server = server
         self.model = copy.deepcopy(model)
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model = self.model.to(self.device)
         self.optimizer = torch.optim.SGD(
             self.model.parameters(), lr=learning_rate)
         self.criterion = nn.CrossEntropyLoss()
@@ -24,8 +26,6 @@ class Silo:
         self.iterations = 1
         self.acc_list = []
         self.loss_list = []
-        self.device = torch.device(
-            "cuda" if torch.cuda.is_available() else "cpu")
         self.train_mode = is_secure # cldp or uldp
         self.histogram_mode = is_histogram_secure # True or False
         self.max_grad_norm = max_grad_norm # C
@@ -57,6 +57,7 @@ class Silo:
         Receive the global model from the server.
         """
         self.model = copy.deepcopy(global_model)
+        self.model = self.model.to(self.device)
 
     def histogram_dp(self, user_histogram):
         """
@@ -102,6 +103,8 @@ class Silo:
             avg_epoch_acc: Average accuracy of all silos
         """
         original_model = copy.deepcopy(global_model)
+
+        original_model = original_model.to(self.device)
         total_loss = 0
         total_acc = 0
         avg_loss = 0
@@ -123,6 +126,9 @@ class Silo:
             users = self.silo_data_indices
             user_model_list = [copy.deepcopy(self.model)
                                for _ in range(len(users))]
+
+            for i in range(len(user_model_list)):
+                user_model_list[i] = user_model_list[i].to(self.device)
             valid_user_count = 0
 
             for user_id, user_data_indices in users.items():
@@ -181,6 +187,7 @@ class Silo:
                         self.model.state_dict()[key] += weighted_delta
         else:
             self.model = copy.deepcopy(global_model)
+            self.model = self.model.to(self.device)
             self.optimizer = torch.optim.SGD(
                 self.model.parameters(), lr=self.learning_rate)
             avg_loss, avg_acc = self.train(

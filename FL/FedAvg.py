@@ -203,6 +203,10 @@ if __name__ == "__main__":
     
     model = CNNMnist()
     
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = model.to(device)
+    print(f"Training device: {device}")
+    
     fed_avg(dataset_name, 
             model, 
             n_silos, 
