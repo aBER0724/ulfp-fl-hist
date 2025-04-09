@@ -15,7 +15,7 @@ EPSILON = 5.0
 DELTA = 1e-5
 MAX_GRAD_NORM = 1.2
 
-def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epochs, local_learning_rate, global_learning_rate, alpha, mode, q_for_batch_size, is_secure, is_clip, is_histogram_secure, weighting_mode, epsilon, histogram_epsilon, delta, max_grad_norm, max_samples, iters=10):
+def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epochs, local_learning_rate, global_learning_rate, alpha, mode, q_for_batch_size, is_secure, is_clip, is_histogram_secure, weighting_mode, epsilon, histogram_epsilon, delta, max_grad_norm, max_samples, device, iters=10,):
     """
     Params:
         dataset_name: Dataset Name
@@ -32,7 +32,7 @@ def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epoch
     dataset = Dataset(dataset_name, n_silos, n_users, alpha, seed, mode, max_samples)
     
     server = Server(dataset, model, global_learning_rate, is_secure)
-    silos = [Silo(i, server, dataset, model, local_learning_rate, q_for_batch_size, local_epochs, is_secure, is_clip, is_histogram_secure, epsilon, histogram_epsilon, delta, max_grad_norm) for i in range(n_silos)]
+    silos = [Silo(i, server, dataset, model, local_learning_rate, q_for_batch_size, local_epochs, is_secure, is_clip, is_histogram_secure, epsilon, histogram_epsilon, delta, max_grad_norm, device) for i in range(n_silos)]
     
     print("================COMPUTE USER WEIGHT START================")
     
@@ -225,4 +225,6 @@ if __name__ == "__main__":
             histogram_epsilon, 
             delta, 
             max_grad_norm, 
-            iters)
+            iters,
+            device=device
+            )
