@@ -162,7 +162,7 @@ if __name__ == "__main__":
     parser.add_argument('--is_secure', type=str, choices=['cldp', 'uldp', 'ndp'], default='ndp', help='Available Differential Privacy')
     parser.add_argument('--is_histogram_secure', type=bool, default=False, help='Histogram Differential Privacy')
     parser.add_argument('--delta', type=float, default=1e-5, help='Delta parameter')
-    parser.add_argument('--sigma', type=float, default=0.5, help='Sigma parameter')
+    parser.add_argument('--sigma', type=float, default=5.0, help='Sigma parameter')
     parser.add_argument('--max_grad_norm', type=float, default=1.2, help='Max gradient norm')
     
     args = parser.parse_args()
