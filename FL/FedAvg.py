@@ -11,7 +11,7 @@ from FL.utilis.server import Server
 from FL.utilis.dataset import Dataset
 from FL.test.test_histogram import visualize_histograms
 
-def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epochs, local_learning_rate, global_learning_rate, alpha, mode, q_for_batch_size, is_secure, is_clip, is_histogram_secure, weighting_mode, delta, sigma, max_grad_norm, max_samples, device, iters=10,):
+def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epochs, local_learning_rate, global_learning_rate, alpha, mode, q_for_batch_size, is_secure, is_clip, is_histogram_secure, weighting_mode, delta, sigma, max_grad_norm, max_samples, iters):
     """
     Params:
         dataset_name: Dataset Name
