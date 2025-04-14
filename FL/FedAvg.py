@@ -11,11 +11,7 @@ from FL.utilis.server import Server
 from FL.utilis.dataset import Dataset
 from FL.test.test_histogram import visualize_histograms
 
-EPSILON = 5.0
-DELTA = 1e-5
-MAX_GRAD_NORM = 1.2
-
-def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epochs, local_learning_rate, global_learning_rate, alpha, mode, q_for_batch_size, is_secure, is_clip, is_histogram_secure, weighting_mode, epsilon, histogram_epsilon, delta, max_grad_norm, max_samples, device, iters=10,):
+def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epochs, local_learning_rate, global_learning_rate, alpha, mode, q_for_batch_size, is_secure, is_clip, is_histogram_secure, weighting_mode, delta, sigma, max_grad_norm, max_samples, device, iters=10,):
     """
     Params:
         dataset_name: Dataset Name
@@ -32,7 +28,7 @@ def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epoch
     dataset = Dataset(dataset_name, n_silos, n_users, alpha, seed, mode, max_samples)
     
     server = Server(dataset, model, global_learning_rate, is_secure)
-    silos = [Silo(i, server, dataset, model, local_learning_rate, q_for_batch_size, local_epochs, is_secure, is_clip, is_histogram_secure, epsilon, histogram_epsilon, delta, max_grad_norm) for i in range(n_silos)]
+    silos = [Silo(i, server, dataset, model, local_learning_rate, q_for_batch_size, local_epochs, is_secure, is_clip, is_histogram_secure, delta, sigma, max_grad_norm) for i in range(n_silos)]
     
     print("================COMPUTE USER WEIGHT START================")
     
@@ -165,9 +161,8 @@ if __name__ == "__main__":
     # DP
     parser.add_argument('--is_secure', type=str, choices=['cldp', 'uldp', 'ndp'], default='ndp', help='Available Differential Privacy')
     parser.add_argument('--is_histogram_secure', type=bool, default=False, help='Histogram Differential Privacy')
-    parser.add_argument('--epsilon', type=float, default=5.0, help='Epsilon parameter')
-    parser.add_argument('--histogram_epsilon', type=float, default=1.0, help='Histogram Epsilon parameter')
     parser.add_argument('--delta', type=float, default=1e-5, help='Delta parameter')
+    parser.add_argument('--sigma', type=float, default=0.5, help='Sigma parameter')
     parser.add_argument('--max_grad_norm', type=float, default=1.2, help='Max gradient norm')
     
     args = parser.parse_args()
@@ -196,9 +191,8 @@ if __name__ == "__main__":
     # DP
     is_secure = args.is_secure
     is_histogram_secure = args.is_histogram_secure
-    epsilon = args.epsilon
-    histogram_epsilon = args.histogram_epsilon
     delta = args.delta
+    sigma = args.sigma
     max_grad_norm = args.max_grad_norm
     
     model = CNNMnist()
@@ -223,9 +217,8 @@ if __name__ == "__main__":
             is_clip,
             is_histogram_secure,
             weighting_mode,
-            epsilon, 
-            histogram_epsilon, 
             delta, 
+            sigma, 
             max_grad_norm, 
             max_samples,
             iters

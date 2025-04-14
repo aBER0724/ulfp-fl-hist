@@ -130,9 +130,8 @@ if __name__ == "__main__":
 	alpha = 0.05
 	q_for_batch_size = 0.1
 	is_histogram_secure = True
-	epsilon = 5.0
-	histogram_epsilon = 1.0
 	delta = 1e-5
+	sigma = 0.5
 	max_grad_norm = 1.2
 	model = CNNMnist()
 	device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -140,7 +139,7 @@ if __name__ == "__main__":
 	dataset = Dataset(dataset_name, n_silos, n_users, alpha, seed, distribute_mode, max_samples=max_samples)
 
 	server = Server(dataset, model, learning_rate, is_secure)
-	silos = [Silo(i, server, dataset, model, learning_rate, q_for_batch_size, local_epoch, is_secure, False, is_histogram_secure, epsilon, histogram_epsilon, delta, max_grad_norm) for i in range(n_silos)]
+	silos = [Silo(i, server, dataset, model, learning_rate, q_for_batch_size, local_epoch, is_secure, False, is_histogram_secure, delta, sigma, max_grad_norm) for i in range(n_silos)]
     
 	# Call the visualization function
 	visualize_histograms(silos)

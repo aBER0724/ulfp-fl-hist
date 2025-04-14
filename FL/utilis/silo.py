@@ -9,7 +9,7 @@ from FL.utilis.sampling import get_data_loaders_uniform_without_replace
 
 
 class Silo:
-    def __init__(self, silo_id, server, dataset, model, learning_rate, q_for_batch_size, epoch_num, is_secure='ndp', is_clip=False, is_histogram_secure=False, epsilon=5.0, histogram_epsilon=1.0, delta=1e-5, sigma=1.1, max_grad_norm=3.0, max_data_number=1000):
+    def __init__(self, silo_id, server, dataset, model, learning_rate, q_for_batch_size, epoch_num, is_secure='ndp', is_clip=False, is_histogram_secure=False, delta=1e-5, sigma=0.5, max_grad_norm=3.0, max_data_number=1000):
         self.id = silo_id
         self.server = server
         self.model = copy.deepcopy(model)
@@ -29,11 +29,9 @@ class Silo:
         self.train_mode = is_secure # cldp or uldp
         self.histogram_mode = is_histogram_secure # True or False
         self.max_grad_norm = max_grad_norm # C
-        self.epsilon = epsilon
         self.delta = delta
         self.sigma = sigma
         self.dataset = dataset
-        self.histogram_epsilon = histogram_epsilon
         self.consumed_epsilon = 0.0  # Initialize accumulated privacy budget consumption
         indices_arr = []
         for user_id, data in self.silo_data_indices.items():
@@ -64,8 +62,8 @@ class Silo:
         """
         Add noise to the user's histogram.
         """
-        scale = 1 / self.histogram_epsilon  # sensitivity = 1
-        noise = np.random.laplace(0, scale, size=len(user_histogram))
+        # Using sigma directly instead of epsilon
+        noise = np.random.normal(0, self.sigma, size=len(user_histogram))
         
         # Use np.maximum to ensure values are non-negative
         return np.maximum(0, np.round(user_histogram + noise)).astype(int)
@@ -127,9 +125,9 @@ class Silo:
                 module=self.model,
                 optimizer=self.optimizer,
                 data_loader=self.train_loader,
-                noise_multiplier=self.sigma,  # Directly use the provided sigma
+                noise_multiplier=self.sigma,
                 max_grad_norm=self.max_grad_norm,
-                target_delta=self.delta,  # Explicitly specify delta
+                target_delta=self.delta
             )
             
             # Train the model
