@@ -181,8 +181,7 @@ class Silo:
                 user_avg_loss, user_avg_acc = self.train(
                     user_model, user_loader, user_optimizer)
 
-                print(
-                    f"Silo {self.id}, User {user_id}: Loss = {user_avg_loss:.4f}, Accuracy = {user_avg_acc:.2f}%")
+                # print(f"Silo {self.id}, User {user_id}: Loss = {user_avg_loss:.4f}, Accuracy = {user_avg_acc:.2f}%")
 
                 total_loss += user_avg_loss
                 total_acc += user_avg_acc
@@ -289,8 +288,7 @@ class Silo:
             epoch_avg_loss = epoch_loss / len(train_loader)
             epoch_avg_acc = epoch_correct / epoch_samples * 100.0
 
-            print(
-                f"Silo {self.id}, Epoch {epoch}: Loss = {epoch_avg_loss:.4f}, Accuracy = {epoch_avg_acc:.2f}%")
+            # print(f"Silo {self.id}, Epoch {epoch}: Loss = {epoch_avg_loss:.4f}, Accuracy = {epoch_avg_acc:.2f}%")
 
             total_loss += epoch_avg_loss
             total_acc += epoch_avg_acc
