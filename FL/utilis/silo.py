@@ -112,6 +112,13 @@ class Silo:
         avg_acc = 0
 
         if self.train_mode == 'cldp':
+            # Make a copy of the global model and reinitialize optimizer with the new model parameters
+            self.model = copy.deepcopy(global_model)
+            self.model = self.model.to(self.device)
+            # Recreate the optimizer with the new model parameters to avoid mismatch
+            self.optimizer = torch.optim.SGD(
+                self.model.parameters(), lr=self.learning_rate)
+                
             privacy_engine = PrivacyEngine()
             self.model, self.optimizer, self.train_loader = privacy_engine.make_private_with_epsilon(
                 module=self.model,
@@ -122,8 +129,17 @@ class Silo:
                 target_delta=self.delta,
                 max_grad_norm=self.max_grad_norm,
             )
+            
+            # Train the model
+            avg_loss, avg_acc = self.train(
+                self.model, self.train_loader, self.optimizer)
+            
+            # Get the actual epsilon spent in this round (not the target)
+            actual_epsilon = privacy_engine.get_epsilon(delta=self.delta)
+            self.consumed_epsilon += actual_epsilon
+            print(f"Silo {self.id} privacy budget: actual spent ε={actual_epsilon:.4f}, accumulated ε={self.consumed_epsilon:.4f}")
 
-        if self.train_mode == 'uldp':
+        elif self.train_mode == 'uldp':
             users = self.silo_data_indices
             user_model_list = [copy.deepcopy(self.model)
                                for _ in range(len(users))]
@@ -215,14 +231,8 @@ class Silo:
             avg_loss, avg_acc = self.train(
                 self.model, self.train_loader, self.optimizer)
             
-            if self.train_mode == 'cldp':
-                # Get the actual epsilon spent in this round (not the target)
-                actual_epsilon = privacy_engine.get_epsilon(delta=self.delta)
-                self.consumed_epsilon += actual_epsilon
-                print(f"Silo {self.id} privacy budget: actual spent ε={actual_epsilon:.4f}, accumulated ε={self.consumed_epsilon:.4f}")
-            else: 
-                # No privacy budget consumed in non-private mode
-                print(f"Silo {self.id}: No privacy budget consumed (non-private mode)")
+            # No privacy budget consumed in non-private mode
+            print(f"Silo {self.id}: No privacy budget consumed (non-private mode)")
 
         return avg_loss, avg_acc
 
