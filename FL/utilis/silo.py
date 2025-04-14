@@ -135,7 +135,15 @@ class Silo:
             # Calculate privacy parameters for ULDP
             # For ULDP, each user's update consumes a portion of the privacy budget
             user_count = len(users)
-            epsilon_per_user = self.epsilon / user_count if user_count > 0 else 0
+            # Calculate noise scale based on actual noise added during clipping
+            # Using the analytic Gaussian mechanism formula for (ε,δ)-DP
+            # ε = sqrt(2*log(1.25/δ)) * (sensitivity / σ)
+            c = self.max_grad_norm  # sensitivity (clipping norm)
+            actual_epsilon_per_user = 0
+            if user_count > 0 and self.sigma > 0:
+                # Calculate actual ε spent per user based on the noise scale (sigma)
+                actual_epsilon_per_user = (c / self.sigma) * math.sqrt(2 * math.log(1.25 / self.delta))
+                
             epsilon_spent_this_round = 0
 
             for user_id, user_data_indices in users.items():
@@ -164,8 +172,8 @@ class Silo:
                 total_acc += user_avg_acc
                 valid_user_count += 1
                 
-                # Add to the spent epsilon
-                epsilon_spent_this_round += epsilon_per_user
+                # Add to the spent epsilon for each active user
+                epsilon_spent_this_round += actual_epsilon_per_user
 
             # Avoid division by zero if no valid users
             if valid_user_count > 0:
@@ -176,9 +184,9 @@ class Silo:
                 avg_loss = 0
                 avg_acc = 0
 
-            # Update epsilon consumption
+            # Update epsilon consumption with actual spent amount
             self.consumed_epsilon += epsilon_spent_this_round
-            print(f"Silo {self.id} privacy budget: spent ε={epsilon_spent_this_round:.4f}, accumulated ε={self.consumed_epsilon:.4f}")
+            print(f"Silo {self.id} privacy budget: actual spent ε={epsilon_spent_this_round:.4f}, accumulated ε={self.consumed_epsilon:.4f}")
 
             # Update the model with the weighted average of the user's models
             with torch.no_grad():
@@ -208,10 +216,10 @@ class Silo:
                 self.model, self.train_loader, self.optimizer)
             
             if self.train_mode == 'cldp':
-                # Get the actual epsilon spent in this round
-                epsilon_spent = privacy_engine.get_epsilon(delta=self.delta)
-                self.consumed_epsilon += epsilon_spent
-                print(f"Silo {self.id} privacy budget: spent ε={epsilon_spent:.4f}, accumulated ε={self.consumed_epsilon:.4f}")
+                # Get the actual epsilon spent in this round (not the target)
+                actual_epsilon = privacy_engine.get_epsilon(delta=self.delta)
+                self.consumed_epsilon += actual_epsilon
+                print(f"Silo {self.id} privacy budget: actual spent ε={actual_epsilon:.4f}, accumulated ε={self.consumed_epsilon:.4f}")
             else: 
                 # No privacy budget consumed in non-private mode
                 print(f"Silo {self.id}: No privacy budget consumed (non-private mode)")

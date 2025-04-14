@@ -149,7 +149,7 @@ if __name__ == "__main__":
     parser.add_argument('--dataset', type=str, default=['mnist','heart_disease','tcga_brca','creditcard'], help='Dataset name')
     parser.add_argument('--max_samples', type=int, default=None, help='Max samples')
     parser.add_argument('--seed', type=int, default=1, help='Random seed')
-    parser.add_argument('--alpha', type=float, default=0.05, help='Alpha parameter')
+    parser.add_argument('--alpha', type=float, default=0.5, help='Alpha parameter')
     parser.add_argument('--distribute_mode', type=str, default='zipf', help='Distribution mode')
 
     # FL
