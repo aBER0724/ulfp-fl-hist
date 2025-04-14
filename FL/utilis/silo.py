@@ -119,25 +119,27 @@ class Silo:
             self.optimizer = torch.optim.SGD(
                 self.model.parameters(), lr=self.learning_rate)
                 
+            # Initialize privacy engine with delta parameter
             privacy_engine = PrivacyEngine()
-            self.model, self.optimizer, self.train_loader = privacy_engine.make_private_with_epsilon(
+            
+            # Use make_private with explicitly specified noise_multiplier (sigma) and delta
+            self.model, self.optimizer, self.train_loader = privacy_engine.make_private(
                 module=self.model,
                 optimizer=self.optimizer,
                 data_loader=self.train_loader,
-                epochs=self.epoch_num,
-                target_epsilon=self.epsilon,
-                target_delta=self.delta,
+                noise_multiplier=self.sigma,  # Directly use the provided sigma
                 max_grad_norm=self.max_grad_norm,
+                target_delta=self.delta,  # Explicitly specify delta
             )
             
             # Train the model
             avg_loss, avg_acc = self.train(
                 self.model, self.train_loader, self.optimizer)
             
-            # Get the actual epsilon spent in this round (not the target)
+            # Get the actual epsilon spent in this round (based on our specified sigma and delta)
             actual_epsilon = privacy_engine.get_epsilon(delta=self.delta)
             self.consumed_epsilon += actual_epsilon
-            print(f"Silo {self.id} privacy budget: actual spent ε={actual_epsilon:.4f}, accumulated ε={self.consumed_epsilon:.4f}")
+            print(f"Silo {self.id} privacy budget: actual spent ε={actual_epsilon:.4f}, accumulated ε={self.consumed_epsilon:.4f} (with σ={self.sigma}, δ={self.delta})")
 
         elif self.train_mode == 'uldp':
             users = self.silo_data_indices
@@ -220,6 +222,10 @@ class Silo:
                             if norm > 0:
                                 clip_factor = min(1.0, self.max_grad_norm / norm)
                                 weighted_delta = weighted_delta * clip_factor
+                            
+                            # Add Gaussian noise for ULDP with scale determined by sigma
+                            noise = torch.randn_like(weighted_delta) * self.sigma * self.max_grad_norm
+                            weighted_delta += noise
                             
                         self.model.state_dict()[key] += weighted_delta
         else:
