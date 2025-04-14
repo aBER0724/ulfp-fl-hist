@@ -34,6 +34,7 @@ class Silo:
         self.sigma = sigma
         self.dataset = dataset
         self.histogram_epsilon = histogram_epsilon
+        self.consumed_epsilon = 0.0  # Initialize accumulated privacy budget consumption
         indices_arr = []
         for user_id, data in self.silo_data_indices.items():
             indices_arr.extend(data)
@@ -131,6 +132,12 @@ class Silo:
                 user_model_list[i] = user_model_list[i].to(self.device)
             valid_user_count = 0
 
+            # Calculate privacy parameters for ULDP
+            # For ULDP, each user's update consumes a portion of the privacy budget
+            user_count = len(users)
+            epsilon_per_user = self.epsilon / user_count if user_count > 0 else 0
+            epsilon_spent_this_round = 0
+
             for user_id, user_data_indices in users.items():
                 user_data = self.dataset.get_dataset(user_data_indices)
                 
@@ -156,6 +163,9 @@ class Silo:
                 total_loss += user_avg_loss
                 total_acc += user_avg_acc
                 valid_user_count += 1
+                
+                # Add to the spent epsilon
+                epsilon_spent_this_round += epsilon_per_user
 
             # Avoid division by zero if no valid users
             if valid_user_count > 0:
@@ -166,6 +176,10 @@ class Silo:
                 avg_loss = 0
                 avg_acc = 0
 
+            # Update epsilon consumption
+            self.consumed_epsilon += epsilon_spent_this_round
+            print(f"Silo {self.id} privacy budget: spent ε={epsilon_spent_this_round:.4f}, accumulated ε={self.consumed_epsilon:.4f}")
+
             # Update the model with the weighted average of the user's models
             with torch.no_grad():
                 for key in self.model.state_dict():
@@ -175,7 +189,7 @@ class Silo:
                         delta = user_model.state_dict()[key] - original_model.state_dict()[key]
                         weighted_delta = delta * self.user_weight_list[i]
                         
-                        # # Clipping
+                        # Clipping
                         if torch.is_tensor(weighted_delta) and weighted_delta.numel() > 0:
                             norm = torch.norm(weighted_delta.flatten(), p=2)
                             
@@ -192,6 +206,15 @@ class Silo:
                 self.model.parameters(), lr=self.learning_rate)
             avg_loss, avg_acc = self.train(
                 self.model, self.train_loader, self.optimizer)
+            
+            if self.train_mode == 'cldp':
+                # Get the actual epsilon spent in this round
+                epsilon_spent = privacy_engine.get_epsilon(delta=self.delta)
+                self.consumed_epsilon += epsilon_spent
+                print(f"Silo {self.id} privacy budget: spent ε={epsilon_spent:.4f}, accumulated ε={self.consumed_epsilon:.4f}")
+            else: 
+                # No privacy budget consumed in non-private mode
+                print(f"Silo {self.id}: No privacy budget consumed (non-private mode)")
 
         return avg_loss, avg_acc
 
