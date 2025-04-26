@@ -131,19 +131,39 @@ class Dataset:
         Converting pre-allocated indexes to client-specific datasets.
         
         Params:
-            silo_id: Silo id.
+            user_data_indices: Data indices for a user or a collection of users.
         
         Returns:
-            silo_data: silo data
+            data: Dataset containing the specified indices.
         """
         data_indices = []
         for user_indices in user_data_indices:
             data_indices.append(user_indices)
         
         # Create subset from list
-        silo_data = torch.utils.data.Subset(self.dataset_train, data_indices)
+        data = torch.utils.data.Subset(self.dataset_train, data_indices)
         
-        return silo_data
+        return data
+        
+    def get_silo_dataset(self, silo_id):
+        """
+        Get the dataset for a specific silo.
+        
+        Params:
+            silo_id: The ID of the silo.
+        
+        Returns:
+            silo_dataset: Dataset for the specified silo.
+        """
+        # 获取该silo所有用户的数据索引
+        user_data_indices = []
+        for user_id, indices in self.silos_indices_of_data[silo_id].items():
+            user_data_indices.extend(indices)
+        
+        # 创建该silo的数据集
+        silo_dataset = torch.utils.data.Subset(self.dataset_train, user_data_indices)
+        
+        return silo_dataset
 
     def get_user_histogram(self, silo_id):
         """

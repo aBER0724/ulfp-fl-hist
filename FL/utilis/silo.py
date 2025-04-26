@@ -9,7 +9,7 @@ from FL.utilis.sampling import get_data_loaders_uniform_without_replace
 
 
 class Silo:
-    def __init__(self, silo_id, server, dataset, model, learning_rate, q_for_batch_size, epoch_num, is_secure='ndp', is_clip=False, is_histogram_secure=False, delta=1e-5, sigma=0.5, max_grad_norm=3.0, max_data_number=1000):
+    def __init__(self, silo_id, server, dataset, model, learning_rate, q_for_batch_size, epoch_num, is_secure='ndp', is_clip=False, is_histogram_secure=False, delta=1e-5, sigma=5.0, max_grad_norm=3.0, max_data_number=1000):
         self.id = silo_id
         self.server = server
         self.model = copy.deepcopy(model)
@@ -127,7 +127,7 @@ class Silo:
                 data_loader=self.train_loader,
                 noise_multiplier=self.sigma,
                 max_grad_norm=self.max_grad_norm,
-                target_delta=self.delta
+                # target_delta=self.delta
             )
             
             # Train the model

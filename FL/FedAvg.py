@@ -3,13 +3,20 @@ import os
 import torch.utils.data
 import torch.nn as nn
 import argparse
-import time
 from datetime import datetime
 from model.CNN import CNNMnist
+from model.MLP import PrivateFraudNet, MLPTabular
 from FL.utilis.silo import Silo
 from FL.utilis.server import Server
 from FL.utilis.dataset import Dataset
 from FL.test.test_histogram import visualize_histograms
+
+# Try importing flamby model for heart disease
+try:
+    from flamby.datasets.fed_heart_disease import Baseline as HeartDiseaseModel # Rename to avoid potential conflicts
+except ImportError:
+    # Handle case where flamby might not be installed (though it should be via requirements)
+    HeartDiseaseModel = None 
 
 def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epochs, local_learning_rate, global_learning_rate, alpha, mode, q_for_batch_size, is_secure, is_clip, is_histogram_secure, weighting_mode, delta, sigma, max_grad_norm, max_samples, iters):
     """
@@ -142,7 +149,7 @@ if __name__ == "__main__":
     parser.add_argument('--n_users', type=int, default=300, help='Number of users')
 
     # Data Divide
-    parser.add_argument('--dataset', type=str, default=['mnist','heart_disease','tcga_brca','creditcard'], help='Dataset name')
+    parser.add_argument('--dataset', type=str, default='mnist', choices=['mnist', 'creditcard', 'heart_disease'], help='Dataset name')
     parser.add_argument('--max_samples', type=int, default=None, help='Max samples')
     parser.add_argument('--seed', type=int, default=1, help='Random seed')
     parser.add_argument('--alpha', type=float, default=0.5, help='Alpha parameter')
@@ -195,31 +202,43 @@ if __name__ == "__main__":
     sigma = args.sigma
     max_grad_norm = args.max_grad_norm
     
-    model = CNNMnist()
+    # 根据数据集选择合适的模型
+    if dataset_name == 'mnist':
+        model = CNNMnist()
+    elif dataset_name == 'creditcard':
+        # Use PrivateFraudNet model from uldp-fl
+        model = PrivateFraudNet(input_dim=30, hidden_dim=30, num_layers=4)
+    elif dataset_name == 'heart_disease': # Match the name used in get_data.py
+        # Use the Baseline model from Flamby for Heart Disease
+        if HeartDiseaseModel is None:
+            raise ImportError("flamby is required for the heart_disease dataset model but could not be imported.")
+        model = HeartDiseaseModel()
+    else:
+        raise ValueError(f"Unknown dataset {dataset_name}")
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = model.to(device)
-    print(f"Training device: {device}")
     
-    fed_avg(dataset_name, 
-            model, 
-            n_silos, 
-            n_users, 
-            seed, 
-            batch_size,
-            local_epoch, 
-            local_learning_rate, 
-            global_learning_rate,
-            alpha, 
-            distribute_mode, 
-            q_for_batch_size, 
-            is_secure, 
-            is_clip,
-            is_histogram_secure,
-            weighting_mode,
-            delta, 
-            sigma, 
-            max_grad_norm, 
-            max_samples,
-            iters
-            )
+    # 启动联邦学习过程
+    fed_avg(
+        dataset_name=dataset_name,
+        model=model,
+        n_silos=n_silos,
+        n_users=n_users,
+        seed=seed,
+        batch_size=batch_size,
+        local_epochs=local_epoch,
+        local_learning_rate=local_learning_rate,
+        global_learning_rate=global_learning_rate,
+        alpha=alpha,
+        mode=distribute_mode,
+        q_for_batch_size=q_for_batch_size,
+        is_secure=is_secure,
+        is_clip=is_clip,
+        is_histogram_secure=is_histogram_secure,
+        weighting_mode=weighting_mode,
+        delta=delta,
+        sigma=sigma,
+        max_grad_norm=max_grad_norm,
+        max_samples=max_samples,
+        iters=iters
+    )
