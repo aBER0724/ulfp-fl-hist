@@ -14,7 +14,11 @@ from FL.utilis.sampling import get_data_loaders_uniform_without_replace
 
 
 class Silo:
+<<<<<<< HEAD
     def __init__(self, silo_id, server, dataset, model, learning_rate, q_for_batch_size, epoch_num, is_secure='ndp', is_histogram_secure=False, delta=1e-5, sigma=5.0, max_grad_norm=1.0, max_data_number=1000):
+=======
+    def __init__(self, silo_id, server, dataset, model, learning_rate, q_for_batch_size, epoch_num, is_secure='ndp', is_clip=False, is_histogram_secure=False, delta=1e-5, sigma=5.0, max_grad_norm=1.0, max_data_number=1000):
+>>>>>>> origin/HEAD
         self.id = silo_id
         self.server = server
         self.model = copy.deepcopy(model)
