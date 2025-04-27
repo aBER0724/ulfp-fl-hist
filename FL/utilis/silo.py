@@ -49,8 +49,10 @@ class Silo:
         self.minibatch_loader, self.microbatch_loader = get_data_loaders_uniform_without_replace(
             self.minibatch_size, self.microbatch_size, self.iterations)
         self.train_loader = self.minibatch_loader(self.silo_data)
-        self.privacy_engine = PrivacyEngine()
-
+        
+        if self.train_mode == 'cldp':
+            self.privacy_engine = PrivacyEngine()
+        
     def get_model(self):
         """
         Get the local model.
@@ -63,6 +65,7 @@ class Silo:
         """
         self.model = copy.deepcopy(global_model)
         self.model = self.model.to(self.device)
+        self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.learning_rate)
 
     def histogram_dp(self, user_histogram):
         """
@@ -107,13 +110,16 @@ class Silo:
             avg_epoch_loss: Average loss of all silos
             avg_epoch_acc: Average accuracy of all silos
         """
-
+        original_model = copy.deepcopy(global_model)
+        original_model = original_model.to(self.device)
         total_loss = 0
         total_acc = 0
         avg_loss = 0
         avg_acc = 0
 
         if self.train_mode == 'cldp':
+            self.model = copy.deepcopy(global_model)
+            self.model = self.model.to(self.device)
             
             self.optimizer = torch.optim.SGD(
                 self.model.parameters(), lr=self.learning_rate)
@@ -140,7 +146,6 @@ class Silo:
             users = self.silo_data_indices
             user_model_list = [copy.deepcopy(self.model)
                                for _ in range(len(users))]
-            user_optimizers = [torch.optim.SGD(model.parameters(), lr=self.learning_rate) for model in user_model_list]
 
             for i in range(len(user_model_list)):
                 user_model_list[i] = user_model_list[i].to(self.device)
@@ -173,7 +178,7 @@ class Silo:
                 )
 
                 user_model = user_model_list[user_id]
-                user_optimizer = user_optimizers[user_id]
+                user_optimizer = torch.optim.SGD(user_model.parameters(), lr=self.learning_rate)
 
                 user_avg_loss, user_avg_acc = self.train(
                     user_model, user_loader, user_optimizer, current_iter)
@@ -203,8 +208,9 @@ class Silo:
             # Update the model with the weighted average of the user's models
             with torch.no_grad():
                 for key in self.model.state_dict():
+                    self.model.state_dict()[key].copy_(original_model.state_dict()[key])
                     for i, user_model in enumerate(user_model_list):
-                        delta = user_model.state_dict()[key] - self.model.state_dict()[key]
+                        delta = user_model.state_dict()[key] - original_model.state_dict()[key]
                         weighted_delta = delta * self.user_weight_list[i]
                         
                         # Clipping
@@ -271,6 +277,21 @@ class Silo:
 
                 # Backward propagation
                 loss.backward()
+
+                # # 添加梯度监控
+                # total_norm = 0
+                # for p in model.parameters():
+                #     if p.grad is not None:
+                #         param_norm = p.grad.data.norm(2)
+                #         total_norm += param_norm.item() ** 2
+                # total_norm = total_norm ** 0.5
+                # if total_norm > 10:  # 警告阈值
+                #     print(f"警告: 梯度范数过大 {total_norm}")
+                
+                # # 检查是否有NaN梯度
+                # for name, param in model.named_parameters():
+                #     if param.grad is not None and torch.isnan(param.grad).any():
+                #         print(f"检测到NaN梯度 in {name}")
 
                 # Step the optimizer
                 optimizer.step()
