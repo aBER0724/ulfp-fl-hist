@@ -107,9 +107,7 @@ class Silo:
             avg_epoch_loss: Average loss of all silos
             avg_epoch_acc: Average accuracy of all silos
         """
-        original_model = copy.deepcopy(global_model)
 
-        original_model = original_model.to(self.device)
         total_loss = 0
         total_acc = 0
         avg_loss = 0
