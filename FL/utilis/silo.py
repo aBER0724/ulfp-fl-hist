@@ -14,15 +14,11 @@ from FL.utilis.sampling import get_data_loaders_uniform_without_replace
 
 
 class Silo:
-<<<<<<< HEAD
     def __init__(self, silo_id, server, dataset, model, learning_rate, q_for_batch_size, epoch_num, is_secure='ndp', is_histogram_secure=False, delta=1e-5, sigma=5.0, max_grad_norm=1.0, max_data_number=1000):
-=======
-    def __init__(self, silo_id, server, dataset, model, learning_rate, q_for_batch_size, epoch_num, is_secure='ndp', is_clip=False, is_histogram_secure=False, delta=1e-5, sigma=5.0, max_grad_norm=1.0, max_data_number=1000):
->>>>>>> origin/HEAD
         self.id = silo_id
         self.server = server
-        self.model = copy.deepcopy(model)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model = copy.deepcopy(model)
         self.model = self.model.to(self.device)
         self.optimizer = torch.optim.SGD(
             self.model.parameters(), lr=learning_rate)
@@ -144,6 +140,7 @@ class Silo:
             users = self.silo_data_indices
             user_model_list = [copy.deepcopy(self.model)
                                for _ in range(len(users))]
+            user_optimizers = [torch.optim.SGD(model.parameters(), lr=self.learning_rate) for model in user_model_list]
 
             for i in range(len(user_model_list)):
                 user_model_list[i] = user_model_list[i].to(self.device)
@@ -175,8 +172,8 @@ class Silo:
                     user_data, batch_size=self.microbatch_size, shuffle=True
                 )
 
-                user_model = self.user_model_list[user_id]
-                user_optimizer = self.user_optimizers[user_id]
+                user_model = user_model_list[user_id]
+                user_optimizer = user_optimizers[user_id]
 
                 user_avg_loss, user_avg_acc = self.train(
                     user_model, user_loader, user_optimizer, current_iter)
@@ -206,10 +203,8 @@ class Silo:
             # Update the model with the weighted average of the user's models
             with torch.no_grad():
                 for key in self.model.state_dict():
-                    self.model.state_dict()[key].copy_(original_model.state_dict()[key])
-
                     for i, user_model in enumerate(user_model_list):
-                        delta = user_model.state_dict()[key] - original_model.state_dict()[key]
+                        delta = user_model.state_dict()[key] - self.model.state_dict()[key]
                         weighted_delta = delta * self.user_weight_list[i]
                         
                         # Clipping
@@ -259,8 +254,8 @@ class Silo:
 
         for epoch in range(self.epoch_num):
             epoch_loss = 0.0
-            epoch_correct = 0
-            epoch_samples = 0
+            epoch_correct = 0.0
+            epoch_samples = 0.0
 
             for id, (data, target) in enumerate(train_loader):
                 # Empty the gradient
