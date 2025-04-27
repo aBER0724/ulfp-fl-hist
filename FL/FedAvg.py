@@ -1,5 +1,10 @@
 import torch
 import os
+import logging
+import sys
+
+logging.basicConfig(level=logging.INFO, format='[%(asctime)s] - %(message)s', datefmt='%Y-%m-%d %H:%M')
+logger = logging.getLogger(__name__)
 import torch.utils.data
 import torch.nn as nn
 import argparse
@@ -18,7 +23,7 @@ except ImportError:
     # Handle case where flamby might not be installed (though it should be via requirements)
     HeartDiseaseModel = None 
 
-def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epochs, local_learning_rate, global_learning_rate, alpha, mode, q_for_batch_size, is_secure, is_clip, is_histogram_secure, weighting_mode, delta, sigma, max_grad_norm, max_samples, iters):
+def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epochs, local_learning_rate, global_learning_rate, alpha, mode, q_for_batch_size, is_secure, is_histogram_secure, weighting_mode, delta, sigma, max_grad_norm, max_samples, iters):
     """
     Params:
         dataset_name: Dataset Name
@@ -35,9 +40,9 @@ def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epoch
     dataset = Dataset(dataset_name, n_silos, n_users, alpha, seed, mode, max_samples)
     
     server = Server(dataset, model, global_learning_rate, is_secure)
-    silos = [Silo(i, server, dataset, model, local_learning_rate, q_for_batch_size, local_epochs, is_secure, is_clip, is_histogram_secure, delta, sigma, max_grad_norm) for i in range(n_silos)]
+    silos = [Silo(i, server, dataset, model, local_learning_rate, q_for_batch_size, local_epochs, is_secure, is_histogram_secure, delta, sigma, max_grad_norm) for i in range(n_silos)]
     
-    print("================COMPUTE USER WEIGHT START================")
+    logger.info("================COMPUTE USER WEIGHT START================")
     
     channel_silos_to_server = []
     
@@ -61,19 +66,19 @@ def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epoch
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         viz_output_dir = f"record/histogram_viz_{timestamp}_s{n_silos}_u{n_users}_{is_secure}"
         visualize_histograms(silos, output_dir=viz_output_dir)
-        print(f"Histogram visualizations saved to {viz_output_dir}")
-    
-    print("=============COMPUTE USER WEIGHT FINISHED==============")
+        logger.info(f"Histogram visualizations saved to {viz_output_dir}")
+
+    logger.info("=============COMPUTE USER WEIGHT FINISHED==============")
     
 
-    print(f"====================FL START===================")
+    logger.info(f"====================FL START===================")
 
     losses = []
     accuracies = []
 
     for i in range(iters):
 
-        print(f"--------------------No.{i} FL--------------------")
+        logger.info(f"--------------------No.{i} FL--------------------")
 
         # 1. Broadcast Global Model to silos
         channel_server_to_silos = [server.get_model() for _ in range(n_silos)]
@@ -83,10 +88,10 @@ def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epoch
         avg_acc_total = 0
         for j, silo in enumerate(silos):
             silo.receive_global_model(server.get_model())
-            avg_loss, avg_acc = silo.local_silos_sgd(server.get_model())
+            avg_loss, avg_acc = silo.local_silos_sgd(server.get_model(), i)
             avg_loss_total += avg_loss
             avg_acc_total += avg_acc
-            print(f"Silo {j} - Loss: {avg_loss:.4f}, Acc: {avg_acc:.2f}%")
+            logger.info(f"Iter {i} | Silo {j} - Loss: {avg_loss:.4f}, Acc: {avg_acc:.2f}%")
         
         # Calculate overall averages
         avg_loss = avg_loss_total / n_silos
@@ -102,7 +107,7 @@ def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epoch
         # 5. Record training history
         losses.append(avg_loss)
         accuracies.append(avg_acc)
-        print(
+        logger.info(
             f"Iter {i} - Avg Loss: {avg_loss:.4f}, Avg Acc: {avg_acc:.2f}%")
 
     record = {
@@ -137,7 +142,7 @@ def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epoch
     filename = f"{output_dir}/fedavg_s{n_silos}_u{n_users}_i{iters}_e{local_epochs}_b{batch_size}_glr{global_learning_rate}_llr{local_learning_rate}_a{alpha}_{mode}_{is_secure}.pth"
     torch.save(record, filename)
     
-    print(f"Training results saved to: {output_dir}")
+    logger.info(f"Training results saved to: {output_dir}")
 
 
 if __name__ == "__main__":
@@ -163,7 +168,6 @@ if __name__ == "__main__":
     parser.add_argument('--local_learning_rate', type=float, default=0.01, help='Local Learning rate')
     parser.add_argument('--global_learning_rate', type=float, default=1.0, help='Global Learning rate')
     parser.add_argument('--weighting_mode', type=str, default='', help='Weighting mode')
-    parser.add_argument('--is_clip', type=bool, default=False, help='Clip User Data')
     
     # DP
     parser.add_argument('--is_secure', type=str, choices=['cldp', 'uldp', 'ndp'], default='ndp', help='Available Differential Privacy')
@@ -193,7 +197,6 @@ if __name__ == "__main__":
     global_learning_rate = args.global_learning_rate
     local_learning_rate = args.local_learning_rate
     weighting_mode = args.weighting_mode
-    is_clip = args.is_clip
     
     # DP
     is_secure = args.is_secure
@@ -233,7 +236,6 @@ if __name__ == "__main__":
         mode=distribute_mode,
         q_for_batch_size=q_for_batch_size,
         is_secure=is_secure,
-        is_clip=is_clip,
         is_histogram_secure=is_histogram_secure,
         weighting_mode=weighting_mode,
         delta=delta,

@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import logging
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -7,6 +8,9 @@ import pandas as pd
 from collections import defaultdict
 import argparse
 from FL.utilis.dataset import Dataset
+
+logging.basicConfig(level=logging.INFO, format='[%(asctime)s] - %(message)s', datefmt='%Y-%m-%d %H:%M')
+logger = logging.getLogger(__name__)
 
 def analyze_distributions(data_indices_of_user, data_indices_of_silo, dataset_train, silo_datasets, mode, dataset_object=None):
     """ 
@@ -153,50 +157,50 @@ def analyze_distributions(data_indices_of_user, data_indices_of_silo, dataset_tr
     return PlotFunctions()
 
 
-def print_detail_of_silo(dataset_object, silo_loaders, silo_datasets):
+def logger.info_detail_of_silo(dataset_object, silo_loaders, silo_datasets):
     """
-    Print details about the dataset distribution across silos
+    logger.info details about the dataset distribution across silos
     """
-    print(f"MODE: {dataset_object.distribute_mode}")
-    print(f"Users Number: {dataset_object.n_users}")
-    print(f"Silos Number: {dataset_object.n_silos}")
-    print(f"Total Data Number: {len(dataset_object.get_whole_train_data())}")
+    logger.info(f"MODE: {dataset_object.distribute_mode}")
+    logger.info(f"Users Number: {dataset_object.n_users}")
+    logger.info(f"Silos Number: {dataset_object.n_silos}")
+    logger.info(f"Total Data Number: {len(dataset_object.get_whole_train_data())}")
     
     # Calculate the actual number of samples used
     actual_samples = sum(len(indices) for indices in dataset_object.data_indices_of_user.values())
-    print(f"Actual Samples Used: {actual_samples}")
+    logger.info(f"Actual Samples Used: {actual_samples}")
     
     if dataset_object.max_samples is not None:
-        print(f"Max Samples Limit: {dataset_object.max_samples}")
+        logger.info(f"Max Samples Limit: {dataset_object.max_samples}")
     
-    print(f"Alpha: {dataset_object.alpha}")
-    print(f"Seed: {dataset_object.seed}")
-    print('------------------------------------------')
+    logger.info(f"Alpha: {dataset_object.alpha}")
+    logger.info(f"Seed: {dataset_object.seed}")
+    logger.info('------------------------------------------')
 
     # Verify data distribution
     for silo_id, loader in silo_loaders.items():
         total = len(loader.dataset)
-        print(f"Silo-{silo_id}:")
-        print(f"   Total samples: {total}")
-        print(f"   Batch number: {len(loader)}")
-        # print(f"   Example data shape: {next(iter(loader))[0].shape}")  # [Batch_size, Channels, Height, Width]
+        logger.info(f"Silo-{silo_id}:")
+        logger.info(f"   Total samples: {total}")
+        logger.info(f"   Batch number: {len(loader)}")
+        # logger.info(f"   Example data shape: {next(iter(loader))[0].shape}")  # [Batch_size, Channels, Height, Width]
         
-        # Print user histogram for this silo
+        # logger.info user histogram for this silo
         user_histogram = dataset_object.get_user_histogram(silo_id)
         # Get top 5 users by data count
         top_users = sorted(user_histogram.items(), key=lambda x: x[1], reverse=True)[:5]
-        print(f"   Top 5 users in this silo:")
+        logger.info(f"   Top 5 users in this silo:")
         for user_id, count in top_users:
-            print(f"      User-{user_id}: {count} samples")
-        print(f"   Total unique users: {len(user_histogram)}")
+            logger.info(f"      User-{user_id}: {count} samples")
+        logger.info(f"   Total unique users: {len(user_histogram)}")
 
     dataset_train = dataset_object.get_whole_train_data()
     for silo_id, dataset in silo_datasets.items():
         labels = [dataset_train.targets[i].item() for i in dataset.indices]
         unique, counts = np.unique(labels, return_counts=True)
-        print(f"Silo-{silo_id} Label distribution:")
+        logger.info(f"Silo-{silo_id} Label distribution:")
         for label, count in zip(unique, counts):
-            print(f"  Label-{label}: {count}")
+            logger.info(f"  Label-{label}: {count}")
 
     
 if __name__ == "__main__":
@@ -278,4 +282,4 @@ if __name__ == "__main__":
         elif plot_type == 'heatmap':
             plot_functions.plot_user_distribution_heatmap()
             
-        print_detail_of_silo(dataset_object, silo_loaders, silo_datasets)
+        logger.info_detail_of_silo(dataset_object, silo_loaders, silo_datasets)

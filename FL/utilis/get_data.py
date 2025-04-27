@@ -6,6 +6,10 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 import os
+import logging
+
+logging.basicConfig(level=logging.INFO, format='[%(asctime)s] - %(message)s', datefmt='%Y-%m-%d %H:%M')
+logger = logging.getLogger(__name__)
 import shutil
 import urllib.request
 
@@ -69,7 +73,7 @@ def get_data(dataset_name):
         dataset_test = TensorDataset(X_test_tensor, y_test_tensor)
         labels = y_train
     elif dataset_name == 'heart_disease':
-        print("Loading Heart Disease dataset using FLamby...")
+        logger.info("Loading Heart Disease dataset using FLamby...")
         # FLamby handles download and preprocessing automatically.
         # It loads data into memory as PyTorch datasets.
         # 'pooled=True' gets the entire dataset, which we'll split later if needed by the framework structure.
@@ -101,10 +105,10 @@ def get_data(dataset_name):
                     labels = np.array(dataset_train._targets)
             else:
                 # If no direct targets attribute, try iterating (less efficient)
-                print("Warning: Could not find labels attribute, iterating to get labels.")
+                logger.warning("Could not find labels attribute, iterating to get labels.")
                 labels = np.array([y for _, y in dataset_train])
              
-            print("FLamby Heart Disease dataset loaded successfully.")
+            logger.info("FLamby Heart Disease dataset loaded successfully.")
 
         except Exception as e:
             raise RuntimeError(f"Failed to load Flamby Heart Disease dataset: {e}\n" 

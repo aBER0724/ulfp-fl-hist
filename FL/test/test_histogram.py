@@ -6,6 +6,10 @@ import torch
 import argparse
 import matplotlib.pyplot as plt
 import numpy as np
+import logging
+
+logging.basicConfig(level=logging.INFO, format='[%(asctime)s] - %(message)s', datefmt='%Y-%m-%d %H:%M')
+logger = logging.getLogger(__name__)
 import os
 
 def visualize_histograms(silos, output_dir='./test_output'):
@@ -24,8 +28,8 @@ def visualize_histograms(silos, output_dir='./test_output'):
 		no_noise_hist = silo.get_user_histogram(is_secure=False)
 		with_noise_hist = silo.get_user_histogram(is_secure=True)
 		
-		print(f"Silo {i} - Without Noise", no_noise_hist)
-		print(f"Silo {i} - With Noise", with_noise_hist)
+		logger.info(f"Silo {i} - Without Noise", no_noise_hist)
+		logger.info(f"Silo {i} - With Noise", with_noise_hist)
 		
 		# Create comparison visualization
 		plt.figure(figsize=(12, 6))

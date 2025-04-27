@@ -1,6 +1,11 @@
 import math
 import copy
 import torch
+import logging
+import sys
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 import torch.nn.functional as F
 from opacus import PrivacyEngine
 import torch.nn as nn
@@ -9,7 +14,7 @@ from FL.utilis.sampling import get_data_loaders_uniform_without_replace
 
 
 class Silo:
-    def __init__(self, silo_id, server, dataset, model, learning_rate, q_for_batch_size, epoch_num, is_secure='ndp', is_clip=False, is_histogram_secure=False, delta=1e-5, sigma=5.0, max_grad_norm=3.0, max_data_number=1000):
+    def __init__(self, silo_id, server, dataset, model, learning_rate, q_for_batch_size, epoch_num, is_secure='ndp', is_histogram_secure=False, delta=1e-5, sigma=5.0, max_grad_norm=3.0, max_data_number=1000):
         self.id = silo_id
         self.server = server
         self.model = copy.deepcopy(model)
@@ -44,6 +49,7 @@ class Silo:
         self.minibatch_loader, self.microbatch_loader = get_data_loaders_uniform_without_replace(
             self.minibatch_size, self.microbatch_size, self.iterations)
         self.train_loader = self.minibatch_loader(self.silo_data)
+        self.privacy_engine = PrivacyEngine()
 
     def get_model(self):
         """
@@ -94,7 +100,7 @@ class Silo:
             self.silo_data = self.silo_data[:max_data_number]
         return self.silo_data
 
-    def local_silos_sgd(self, global_model):
+    def local_silos_sgd(self, global_model, current_iter):
         """
         silo local stochastic gradient descent.
         Returns:
@@ -110,34 +116,27 @@ class Silo:
         avg_acc = 0
 
         if self.train_mode == 'cldp':
-            # Make a copy of the global model and reinitialize optimizer with the new model parameters
-            self.model = copy.deepcopy(global_model)
-            self.model = self.model.to(self.device)
-            # Recreate the optimizer with the new model parameters to avoid mismatch
+            
             self.optimizer = torch.optim.SGD(
                 self.model.parameters(), lr=self.learning_rate)
-                
-            # Initialize privacy engine with delta parameter
-            privacy_engine = PrivacyEngine()
             
             # Use make_private with explicitly specified noise_multiplier (sigma) and delta
-            self.model, self.optimizer, self.train_loader = privacy_engine.make_private(
+            self.model, self.optimizer, self.train_loader = self.privacy_engine.make_private(
                 module=self.model,
                 optimizer=self.optimizer,
                 data_loader=self.train_loader,
                 noise_multiplier=self.sigma,
-                max_grad_norm=self.max_grad_norm,
-                # target_delta=self.delta
+                max_grad_norm=self.max_grad_norm
             )
             
             # Train the model
             avg_loss, avg_acc = self.train(
-                self.model, self.train_loader, self.optimizer)
+                self.model, self.train_loader, self.optimizer, current_iter)
             
             # Get the actual epsilon spent in this round (based on our specified sigma and delta)
-            actual_epsilon = privacy_engine.get_epsilon(delta=self.delta)
+            actual_epsilon = self.privacy_engine.get_epsilon(delta=self.delta)
             self.consumed_epsilon += actual_epsilon
-            print(f"Silo {self.id} privacy budget: actual spent ε={actual_epsilon:.4f}, accumulated ε={self.consumed_epsilon:.4f} (with σ={self.sigma}, δ={self.delta})")
+            logger.info(f"Iter {current_iter} | Silo {self.id} accumulated ε={self.consumed_epsilon:.4f} (with σ={self.sigma}, δ={self.delta})")
 
         elif self.train_mode == 'uldp':
             users = self.silo_data_indices
@@ -167,21 +166,20 @@ class Silo:
                 
                 # Skip users with empty datasets
                 if len(user_data) == 0:
-                    print(f"Silo {self.id}, User {user_id}: Skipping - Empty dataset")
+                    logger.info(f"Iter {current_iter} | Silo {self.id}, User {user_id}: Skipping - Empty dataset")
                     continue
                     
                 user_loader = torch.utils.data.DataLoader(
                     user_data, batch_size=self.microbatch_size, shuffle=True
                 )
 
-                user_model = user_model_list[user_id]
-                user_optimizer = torch.optim.SGD(
-                    user_model.parameters(), lr=self.learning_rate)
+                user_model = self.user_model_list[user_id]
+                user_optimizer = self.user_optimizers[user_id]
 
                 user_avg_loss, user_avg_acc = self.train(
-                    user_model, user_loader, user_optimizer)
+                    user_model, user_loader, user_optimizer, current_iter)
 
-                print(f"Silo {self.id}, User {user_id}: Loss = {user_avg_loss:.4f}, Accuracy = {user_avg_acc:.2f}%")
+                logger.info(f"Iter {current_iter} | Silo {self.id}, User {user_id}: Loss = {user_avg_loss:.4f}, Accuracy = {user_avg_acc:.2f}%")
 
                 total_loss += user_avg_loss
                 total_acc += user_avg_acc
@@ -195,13 +193,13 @@ class Silo:
                 avg_loss = total_loss / valid_user_count
                 avg_acc = total_acc / valid_user_count
             else:
-                print(f"Warning: Silo {self.id} has no valid users with data")
+                logger.warning(f"Iter {current_iter} | Silo {self.id} has no valid users with data")
                 avg_loss = 0
                 avg_acc = 0
 
             # Update epsilon consumption with actual spent amount
             self.consumed_epsilon += epsilon_spent_this_round
-            print(f"Silo {self.id} privacy budget: actual spent ε={epsilon_spent_this_round:.4f}, accumulated ε={self.consumed_epsilon:.4f}")
+            logger.info(f"Iter {current_iter} | Silo {self.id} accumulated ε={self.consumed_epsilon:.4f} (with σ={self.sigma}, δ={self.delta})")
 
             # Update the model with the weighted average of the user's models
             with torch.no_grad():
@@ -232,14 +230,14 @@ class Silo:
             self.optimizer = torch.optim.SGD(
                 self.model.parameters(), lr=self.learning_rate)
             avg_loss, avg_acc = self.train(
-                self.model, self.train_loader, self.optimizer)
+                self.model, self.train_loader, self.optimizer, current_iter)
             
             # No privacy budget consumed in non-private mode
-            print(f"Silo {self.id}: No privacy budget consumed (non-private mode)")
+            logger.info(f"Iter {current_iter} | Silo {self.id}: No privacy budget consumed (non-private mode)")
 
         return avg_loss, avg_acc
 
-    def train(self, model, train_loader, optimizer=None):
+    def train(self, model, train_loader, optimizer=None, current_iter=0): # Add current_iter with default
         """
         Local training with noise addition
         Args:
@@ -292,7 +290,7 @@ class Silo:
             epoch_avg_loss = epoch_loss / len(train_loader)
             epoch_avg_acc = epoch_correct / epoch_samples * 100.0
 
-            print(f"Silo {self.id}, Epoch {epoch}: Loss = {epoch_avg_loss:.4f}, Accuracy = {epoch_avg_acc:.2f}%")
+            logger.info(f"Iter {current_iter} | Silo {self.id}, Epoch {epoch}: Loss = {epoch_avg_loss:.4f}, Accuracy = {epoch_avg_acc:.2f}%")
 
             total_loss += epoch_avg_loss
             total_acc += epoch_avg_acc
