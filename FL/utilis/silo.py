@@ -223,7 +223,7 @@ class Silo:
                             
                             # Add Gaussian noise for ULDP with scale determined by sigma
                             noise = torch.randn_like(weighted_delta) * self.sigma * self.max_grad_norm
-                            weighted_delta += noise
+                            # weighted_delta += noise
                             
                         self.model.state_dict()[key] += weighted_delta
         else:
