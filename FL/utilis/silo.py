@@ -76,7 +76,7 @@ class Silo:
             if self.histogram_mode == "dp":
                 return histogram_dp(self.user_histogram, self.sigma)
             elif self.histogram_mode == "sf_dp":
-                return histogram_structure_first_dp()
+                return histogram_structure_first_dp(self.user_histogram, self.histogram_epsilon, int(len(self.user_histogram)/10), 100.0)
             elif self.histogram_mode == "nf_dp":
                 return histogram_noise_first_dp(self.user_histogram, self.histogram_epsilon)
             else:

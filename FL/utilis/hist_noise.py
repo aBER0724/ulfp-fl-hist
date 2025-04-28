@@ -109,7 +109,7 @@ def reconstruct_boundaries(ptr_table, n, k):
 
     return final_boundaries
 
-def noise_first_k(user_histogram, epsilon):
+def histogram_noise_first_dp(user_histogram, epsilon):
     """
     Implements the NoiseFirst algorithm with automatic k selection
     based on Xu et al. 2013, Algorithm 2 and Eq. 4.
@@ -134,7 +134,7 @@ def noise_first_k(user_histogram, epsilon):
     # Step 1: Add Laplace noise to each bin count
     scale = 1.0 / epsilon
     noise = np.random.laplace(0, scale, n)
-    noisy_histogram = user_histogram.astype(float) + noise
+    noisy_histogram = np.maximum(0, np.round(user_histogram + noise)).astype(int)
 
     # Step 2: Run DP to find min SSE for all possible k (1 to n) on noisy data
     # max_k is n because we need to evaluate all possibilities
@@ -193,79 +193,10 @@ def noise_first_k(user_histogram, epsilon):
 
     return final_output
 
-def histogram_noise_first_dp(user_histogram, epsilon):
-	"""
-	Implements the NoiseFirst algorithm for differentially private histograms.
-
-	Args:
-		user_histogram (np.ndarray): 1D numpy array of original histogram counts (finest granularity).
-		epsilon (float): The privacy budget (epsilon > 0).
-		k (int): The desired number of bins in the output histogram.
-
-	Returns:
-		np.ndarray: The k-bin differentially private histogram, same shape as input.
-					Values within a bin are replaced by the noisy mean of that bin.
-	"""
-	if epsilon <= 0:
-		raise ValueError("Epsilon must be positive.")
-
-	k = noise_first_k(user_histogram, epsilon)
-
-	n = len(user_histogram)
-	noisy_histogram = np.zeros_like(user_histogram, dtype=float)  # Use float for noise
-
-	# Step 1: Add Laplace noise to each bin count
-	scale = 1.0 / epsilon
-	noise = np.random.laplace(0, scale, n)
-	noisy_histogram = user_histogram.astype(float) + noise
-
-	# Step 2: Find optimal k-bin structure on the noisy histogram
-	boundaries, _, _ = find_optimal_histogram_dp(noisy_histogram, k)
-
-	# Step 3: Construct the output histogram using noisy means
-	output_histogram = np.zeros_like(noisy_histogram)
-	start_idx = 0
-	for end_idx in boundaries:
-		if start_idx < end_idx:  # Ensure the slice is not empty
-			bin_data = noisy_histogram[start_idx:end_idx]
-			noisy_mean = np.mean(bin_data)
-			output_histogram[start_idx:end_idx] = noisy_mean
-		start_idx = end_idx
-
-	# Post-processing: Round and ensure non-negativity (similar to user's example)
-	# Note: DP guarantees apply to the real-valued noisy output before rounding/clipping.
-	final_output = np.maximum(0, np.round(output_histogram)).astype(int)
-
-	return final_output
-
 def histogram_structure_first_dp(user_histogram, epsilon, k, F):
 	"""
 	Implements the Mean-StructureFirst algorithm for differentially private histograms.
-
-	Args:
-		user_histogram (np.ndarray): 1D numpy array of original histogram counts.
-		epsilon (float): The total privacy budget (epsilon > 0).
-		k (int): The desired number of bins in the output histogram.
-		F (float): An upper bound on the maximum possible count in any bin
-				(used for sensitivity calculation in structure perturbation).
-
-	Returns:
-		np.ndarray: The k-bin differentially private histogram, same shape as input.
-					Values within a bin are replaced by the noisy mean of that bin
-					(calculated on original data, then noise added).
 	"""
-	if epsilon <= 0:
-		raise ValueError("Epsilon must be positive.")
-	if k <= 0 or k > len(user_histogram):
-		raise ValueError(
-			"k must be between 1 and the length of the histogram.")
-	if F <= 0:
-		# A simple heuristic if F is not provided or invalid, might need adjustment
-		F = np.max(user_histogram) if len(user_histogram) > 0 else 1
-		if F <= 0 :
-			F = 1 # Ensure F is positive
-		print(f"Warning: Using estimated F={F}. Provide a proper upper bound for better privacy analysis.")
-
 	n = len(user_histogram)
 
 	# Step 1: Split epsilon (simple 50/50 split for demonstration)
@@ -274,7 +205,7 @@ def histogram_structure_first_dp(user_histogram, epsilon, k, F):
 
 	# Step 2: Find optimal k-bin structure on original data
 	# We need the full DP table for error calculation during perturbation
-	optimal_boundaries_orig, dp_table, _ = find_optimal_histogram_dp(
+	dp_table, ptr_table = find_optimal_histogram_dp(
 		user_histogram, k)
 	# Precompute SSE cache on original data if not already done by dp function
 	sse_cache_orig = np.full((n, n), np.inf)
@@ -306,21 +237,9 @@ def histogram_structure_first_dp(user_histogram, epsilon, k, F):
 	for j in range(k - 1, 0, -1):  # Determine boundary between bin j-1 and j
 		possible_starts_last_bin = list(range(j, current_end_idx))  # Possible start indices for bin j
 		if not possible_starts_last_bin:  # Cannot form j bins ending at current_end_idx
-			# Fallback: Use original boundary or handle error appropriately
-			# This case might indicate issues if k is too large for the segment
-			# For simplicity, let's try to recover using original logic if possible
-			# A more robust implementation might need backtracking or error handling
 			print(
 				f"Warning: Could not find valid split for bin {j} ending at {current_end_idx}")
-			# Attempt to use the optimal split point from original DP table
-			# This is heuristic and might not perfectly follow the exponential mechanism logic if the range is invalid
-			optimal_start_last_bin = _  # Need ptr table from original DP run
-			# Find optimal start index for bin j ending at current_end_idx
-			# This requires the ptr table from the original DP run
-			# Let's assume find_optimal_histogram_dp returns ptr_orig
-			# optimal_start_last_bin = ptr_orig[current_end_idx][j+1] # Adjust index based on definition
-			# For now, we'll just break or use a default if this edge case occurs
-			# Using the previous boundary as a fallback (might lead to empty bins)
+
 			perturbed_boundaries[j-1] = perturbed_boundaries[j] if j < k-1 else j-1  # Heuristic fallback
 			current_end_idx = perturbed_boundaries[j-1]
 			continue
