@@ -65,7 +65,6 @@ class Silo:
         """
         self.model = copy.deepcopy(global_model)
         self.model = self.model.to(self.device)
-        self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.learning_rate)
 
     def histogram_dp(self, user_histogram):
         """
@@ -285,21 +284,6 @@ class Silo:
 
                 # Backward propagation
                 loss.backward()
-
-                # # 添加梯度监控
-                # total_norm = 0
-                # for p in model.parameters():
-                #     if p.grad is not None:
-                #         param_norm = p.grad.data.norm(2)
-                #         total_norm += param_norm.item() ** 2
-                # total_norm = total_norm ** 0.5
-                # if total_norm > 10:  # 警告阈值
-                #     print(f"警告: 梯度范数过大 {total_norm}")
-                
-                # # 检查是否有NaN梯度
-                # for name, param in model.named_parameters():
-                #     if param.grad is not None and torch.isnan(param.grad).any():
-                #         print(f"检测到NaN梯度 in {name}")
 
                 # Step the optimizer
                 optimizer.step()
