@@ -4,7 +4,9 @@ import torch
 
 class Server:
     def __init__(self, dataset, global_model, global_learning_rate, train_mode):
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = copy.deepcopy(global_model)
+        self.model = self.model.to(self.device)
         self.silo_weights = []
         self.silos_model_list = []
         self.global_learning_rate = global_learning_rate

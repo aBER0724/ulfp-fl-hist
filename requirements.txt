@@ -1,11 +1,12 @@
 torch~=2.5.1
 torchvision~=0.20.1
 torchaudio
-numpy==1.25.2
+numpy==2.2.5
 matplotlib~=3.9.4
 opacus~=1.4.0
 seaborn~=0.13.2
 pandas~=2.2.1
 kagglehub
 scikit-learn~=1.4.0
-flamby
+scipy~=1.15.2
+git+https://github.com/owkin/FLamby.git@0.0.1#egg=flamby[heart,tcga]
