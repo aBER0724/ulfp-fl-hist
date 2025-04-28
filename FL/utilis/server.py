@@ -70,7 +70,7 @@ class Server:
                     
                     # Average the updates and apply with learning rate
                     if self.train_mode == 'uldp':  # 1/|U||S|
-                        aggregated_params[key] = self.global_learning_rate * (total_update / (self.dataset.get_user_number() * len(self.silos_model_list)))
+                        aggregated_params[key] += self.global_learning_rate * (total_update / (self.dataset.get_user_number() * len(self.silos_model_list)))
                     else:  # 1/|S|
                         aggregated_params[key] += self.global_learning_rate * (total_update / len(self.silos_model_list))
 
