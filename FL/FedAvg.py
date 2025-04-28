@@ -23,7 +23,7 @@ except ImportError:
     # Handle case where flamby might not be installed (though it should be via requirements)
     HeartDiseaseModel = None 
 
-def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epochs, local_learning_rate, global_learning_rate, alpha, mode, q_for_batch_size, is_secure, is_histogram_secure, weighting_mode, delta, sigma, max_grad_norm, max_samples, iters):
+def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epochs, local_learning_rate, global_learning_rate, alpha, mode, q_for_batch_size, is_secure, is_histogram_secure, histogram_epsilon, weighting_mode, delta, sigma, max_grad_norm, max_samples, iters):
     """
     Params:
         dataset_name: Dataset Name
@@ -40,7 +40,7 @@ def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epoch
     dataset = Dataset(dataset_name, n_silos, n_users, alpha, seed, mode, max_samples)
     
     server = Server(dataset, model, global_learning_rate, is_secure)
-    silos = [Silo(i, server, dataset, model, local_learning_rate, q_for_batch_size, local_epochs, is_secure, is_histogram_secure, delta, sigma, max_grad_norm) for i in range(n_silos)]
+    silos = [Silo(i, server, dataset, model, local_learning_rate, q_for_batch_size, local_epochs, is_secure, is_histogram_secure, delta, sigma, max_grad_norm, histogram_epsilon) for i in range(n_silos)]
     
     logger.info("================COMPUTE USER WEIGHT START================")
     
@@ -172,7 +172,8 @@ if __name__ == "__main__":
     
     # DP
     parser.add_argument('--is_secure', type=str, choices=['cldp', 'uldp', 'ndp'], default='ndp', help='Available Differential Privacy')
-    parser.add_argument('--is_histogram_secure', type=bool, default=False, help='Histogram Differential Privacy')
+    parser.add_argument('--is_histogram_secure', type=str, default='', choices=['dp','nf_dp', 'sf_dp'], help='Histogram Differential Privacy')
+    parser.add_argument('--histogram_epsilon', type=float, default=1.0, help='Histogram Epsilon')
     parser.add_argument('--delta', type=float, default=1e-5, help='Delta parameter')
     parser.add_argument('--sigma', type=float, default=5.0, help='Sigma parameter')
     parser.add_argument('--max_grad_norm', type=float, default=1.2, help='Max gradient norm')
@@ -202,6 +203,7 @@ if __name__ == "__main__":
     # DP
     is_secure = args.is_secure
     is_histogram_secure = args.is_histogram_secure
+    histogram_epsilon = args.histogram_epsilon
     delta = args.delta
     sigma = args.sigma
     max_grad_norm = args.max_grad_norm
@@ -240,6 +242,7 @@ if __name__ == "__main__":
         q_for_batch_size=q_for_batch_size,
         is_secure=is_secure,
         is_histogram_secure=is_histogram_secure,
+        histogram_epsilon=histogram_epsilon,
         weighting_mode=weighting_mode,
         delta=delta,
         sigma=sigma,

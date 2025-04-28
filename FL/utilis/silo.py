@@ -11,10 +11,11 @@ from opacus import PrivacyEngine
 import torch.nn as nn
 import numpy as np
 from FL.utilis.sampling import get_data_loaders_uniform_without_replace
+from FL.utilis.hist_noise import histogram_dp, histogram_structure_first_dp, histogram_noise_first_dp
 
 
 class Silo:
-    def __init__(self, silo_id, server, dataset, model, learning_rate, q_for_batch_size, epoch_num, is_secure='ndp', is_histogram_secure=False, delta=1e-5, sigma=5.0, max_grad_norm=1.0, max_data_number=1000):
+    def __init__(self, silo_id, server, dataset, model, learning_rate, q_for_batch_size, epoch_num, is_secure='ndp', is_histogram_secure='', delta=1e-5, sigma=5.0, max_grad_norm=1.0, max_data_number=1000, histogram_epsilon=1.0):
         self.id = silo_id
         self.server = server
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -33,6 +34,7 @@ class Silo:
         self.loss_list = []
         self.train_mode = is_secure # cldp or uldp
         self.histogram_mode = is_histogram_secure # True or False
+        self.histogram_epsilon = histogram_epsilon
         self.max_grad_norm = max_grad_norm # C
         self.delta = delta
         self.sigma = sigma
@@ -65,23 +67,20 @@ class Silo:
         """
         self.model = copy.deepcopy(global_model)
         self.model = self.model.to(self.device)
-
-    def histogram_dp(self, user_histogram):
-        """
-        Add noise to the user's histogram.
-        """
-        # Using sigma directly instead of epsilon
-        noise = np.random.normal(0, self.sigma, size=len(user_histogram))
-        
-        # Use np.maximum to ensure values are non-negative
-        return np.maximum(0, np.round(user_histogram + noise)).astype(int)
     
     def get_user_histogram(self, is_secure=True):
         """
         Get the histogram of user's data.
         """
-        if is_secure and self.histogram_mode:
-            return self.histogram_dp(self.user_histogram)
+        if is_secure != None: 
+            if self.histogram_mode == "dp":
+                return histogram_dp(self.user_histogram, self.sigma)
+            elif self.histogram_mode == "sf_dp":
+                return histogram_structure_first_dp()
+            elif self.histogram_mode == "nf_dp":
+                return histogram_noise_first_dp(self.user_histogram, self.histogram_epsilon)
+            else:
+                return self.user_histogram
         else:
             return self.user_histogram
 
@@ -221,7 +220,7 @@ class Silo:
                     # 按照算法加噪声
                     noise_std = self.sigma * self.max_grad_norm / math.sqrt(len(user_model_list))
                     noise = torch.randn_like(aggregated_delta) * noise_std
-                    aggregated_delta += noise
+                    # aggregated_delta += noise
                     self.model.state_dict()[key] += aggregated_delta
         else:
             self.model = copy.deepcopy(global_model)
