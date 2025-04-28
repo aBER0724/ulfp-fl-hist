@@ -129,6 +129,7 @@ def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epoch
             'local_learning_rate': local_learning_rate,
             'global_learning_rate': global_learning_rate,
             'alpha': alpha,
+            'sigma': sigma,
             'mode': mode
         }
     }
@@ -139,7 +140,7 @@ def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epoch
     os.makedirs(output_dir, exist_ok=True)
     
     # Save as .pth file in the unique directory
-    filename = f"{output_dir}/fedavg_s{n_silos}_u{n_users}_i{iters}_e{local_epochs}_b{batch_size}_glr{global_learning_rate}_llr{local_learning_rate}_a{alpha}_{mode}_{is_secure}.pth"
+    filename = f"{output_dir}/fedavg_s{n_silos}_u{n_users}_i{iters}_e{local_epochs}_glr{global_learning_rate}_llr{local_learning_rate}_sigma{sigma}_{mode}_{is_secure}.pth"
     torch.save(record, filename)
     
     logger.info(f"Training results saved to: {output_dir}")
