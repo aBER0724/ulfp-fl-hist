@@ -207,32 +207,21 @@ class Silo:
             # Update the model with the weighted average of the user's models
             with torch.no_grad():
                 for key in self.model.state_dict():
-                    # Reset model parameters to original
                     self.model.state_dict()[key].copy_(original_model.state_dict()[key])
-                    
-                    # First aggregate all user updates
                     aggregated_delta = torch.zeros_like(self.model.state_dict()[key])
                     
-                    # Compute weighted delta for each user
                     for i, user_model in enumerate(user_model_list):
                         delta = user_model.state_dict()[key] - original_model.state_dict()[key]
-                        weighted_delta = delta * self.user_weight_list[i]
+                        norm = torch.norm(delta.flatten(), p=2)
+                        clip_factor = min(1.0, self.max_grad_norm / (norm + 1e-8))
+                        clipped_delta = delta * clip_factor
+                        weighted_delta = self.user_weight_list[i] * clipped_delta
                         aggregated_delta += weighted_delta
-                    
-                    # Apply clipping to aggregated update
-                    if torch.is_tensor(aggregated_delta) and aggregated_delta.numel() > 0:
-                        norm = torch.norm(aggregated_delta.flatten(), p=2)
                         
-                        # min(1, C/||aggregated_delta||_2))
-                        if norm > 0:
-                            clip_factor = min(1.0, self.max_grad_norm / norm)
-                            aggregated_delta = aggregated_delta * clip_factor
-                        
-                        # Add Gaussian noise only once to the aggregated update
-                        noise = torch.randn_like(aggregated_delta) * self.sigma * self.max_grad_norm
-                        aggregated_delta += noise
-                    
-                    # Apply the noisy aggregated update
+                    # 按照算法加噪声
+                    noise_std = self.sigma * self.max_grad_norm / math.sqrt(len(user_model_list))
+                    noise = torch.randn_like(aggregated_delta) * noise_std
+                    aggregated_delta += noise
                     self.model.state_dict()[key] += aggregated_delta
         else:
             self.model = copy.deepcopy(global_model)
