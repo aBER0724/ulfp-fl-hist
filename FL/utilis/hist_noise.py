@@ -12,18 +12,11 @@ def find_optimal_histogram_dp(histogram_data, max_k):
     """
     Finds the optimal histogram structures for all k up to max_k using
     dynamic programming to minimize Sum of Squared Errors (SSE).
-
-    参数:
-        histogram_data: 一维直方图计数数据
-        max_k: 最大bin数
-
-    返回:
-        (dp表, 指针表) 元组
     """
     n = len(histogram_data)
     k = max_k
-    dp = np.full((n + 1, k + 1), np.inf)  # DP表
-    ptr = np.zeros((n + 1, k + 1), dtype=int)  # 指针表
+    dp = np.full((n + 1, k + 1), np.inf)  # DP table
+    ptr = np.zeros((n + 1, k + 1), dtype=int)  # Point table
     dp[0][0] = 0
 
     # Precompute SSE for all possible single bins to speed up DP
@@ -95,13 +88,6 @@ def reconstruct_boundaries(ptr_table, n, k):
 def histogram_noise_first_dp(user_histogram, epsilon):
     """
     Implements the NoiseFirst algorithm with automatic k selection
-
-    参数:
-        user_histogram: 原始直方图数据
-        epsilon: 隐私预算
-
-    返回:
-        差分隐私处理后的直方图
     """
     if epsilon <= 0:
         raise ValueError("Epsilon must be positive.")
