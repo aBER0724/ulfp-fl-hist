@@ -13,23 +13,17 @@ def find_optimal_histogram_dp(histogram_data, max_k):
     Finds the optimal histogram structures for all k up to max_k using
     dynamic programming to minimize Sum of Squared Errors (SSE).
 
-    Args:
-        histogram_data (np.ndarray): The 1D histogram count data.
-        max_k (int): The maximum number of bins to consider.
+    参数:
+        histogram_data: 一维直方图计数数据
+        max_k: 最大bin数
 
-    Returns:
-        tuple: A tuple containing:
-            - np.ndarray: The DP table storing minimum SSE values.
-                          dp[i][j] is min SSE for first i elements using j bins.
-            - np.ndarray: The DP backpointer table to reconstruct boundaries.
-                          ptr[i][j] stores the start index of the last bin for dp[i][j].
+    返回:
+        (dp表, 指针表) 元组
     """
     n = len(histogram_data)
-    k = max_k # Use max_k for table dimensions
-    # dp[i][j]: min SSE for histogram_data[:i] using j bins
-    dp = np.full((n + 1, k + 1), np.inf)
-    # ptr[i][j]: the split point (start index of the last bin) for dp[i][j]
-    ptr = np.zeros((n + 1, k + 1), dtype=int)
+    k = max_k
+    dp = np.full((n + 1, k + 1), np.inf)  # DP表
+    ptr = np.zeros((n + 1, k + 1), dtype=int)  # 指针表
     dp[0][0] = 0
 
     # Precompute SSE for all possible single bins to speed up DP
@@ -74,7 +68,6 @@ def reconstruct_boundaries(ptr_table, n, k):
     current_k = k
     current_idx = n
     while current_k > 0 and current_idx > 0:
-         # Check if ptr value is valid before using it
         start_index = ptr_table[current_idx][current_k]
         if start_index < 0 or start_index >= current_idx:
              # Handle invalid pointer, maybe raise error or use fallback
@@ -84,43 +77,31 @@ def reconstruct_boundaries(ptr_table, n, k):
              break # Or implement more sophisticated recovery
 
 
-        boundaries.append(start_index) # Store the start index
+        boundaries.append(start_index)
         current_idx = start_index
         current_k -= 1
 
-    # Convert start indices to exclusive end indices: [b1, b2, ..., n]
-    # Reverse, remove the initial 0, sort, and add n
-    final_boundaries = sorted(list(set(boundaries))) # Use set to handle potential duplicates from fallback
+    final_boundaries = sorted(list(set(boundaries)))
     if 0 in final_boundaries:
          final_boundaries.remove(0)
     if n not in final_boundaries:
         final_boundaries.append(n)
 
-    # Ensure the number of boundaries corresponds to k bins
-    # The number of boundaries in the final list should be k (including n)
-    # The number of *internal* boundaries is k-1
-    # This reconstruction might need refinement depending on edge cases
-    # Let's return the list of end points [b1, b2, ..., b_{k-1}, n]
-    # If the length is wrong, it indicates an issue in reconstruction or DP ptr logic
     if len(final_boundaries) != k:
          print(f"Warning: Reconstructed boundaries count {len(final_boundaries)} != k={k}. Boundaries: {final_boundaries}")
-         # Attempt basic correction if possible, e.g., padding or truncating, but this is heuristic
-         # For simplicity, return as is, but signal potential issue
 
     return final_boundaries
 
 def histogram_noise_first_dp(user_histogram, epsilon):
     """
     Implements the NoiseFirst algorithm with automatic k selection
-    based on Xu et al. 2013, Algorithm 2 and Eq. 4.
 
-    Args:
-        user_histogram (np.ndarray): 1D numpy array of original histogram counts (finest granularity).
-        epsilon (float): The privacy budget (epsilon > 0).
+    参数:
+        user_histogram: 原始直方图数据
+        epsilon: 隐私预算
 
-    Returns:
-        np.ndarray: The k*-bin differentially private histogram (where k* is chosen automatically),
-                    same shape as input. Values within a bin are replaced by the noisy mean of that bin.
+    返回:
+        差分隐私处理后的直方图
     """
     if epsilon <= 0:
         raise ValueError("Epsilon must be positive.")
@@ -131,16 +112,16 @@ def histogram_noise_first_dp(user_histogram, epsilon):
 
     noisy_histogram = np.zeros_like(user_histogram, dtype=float)
 
-    # Step 1: Add Laplace noise to each bin count
+    # Add Laplace noise to each bin count
     scale = 1.0 / epsilon
     noise = np.random.laplace(0, scale, n)
     noisy_histogram = np.maximum(0, np.round(user_histogram + noise)).astype(int)
 
-    # Step 2: Run DP to find min SSE for all possible k (1 to n) on noisy data
+    # Run DP to find min SSE for all possible k (1 to n) on noisy data
     # max_k is n because we need to evaluate all possibilities
     dp_table, ptr_table = find_optimal_histogram_dp(noisy_histogram, max_k=n)
 
-    # Step 3: Select optimal k* based on Eq. 4 from Xu et al.
+    # Select optimal k* based on Eq. 4 from Xu et al.
     best_k = -1
     min_objective_value = np.inf
     epsilon_sq = epsilon**2
@@ -166,10 +147,10 @@ def histogram_noise_first_dp(user_histogram, epsilon):
 
     print(f"Automatically selected k = {best_k}")
 
-    # Step 4: Reconstruct boundaries for the chosen k*
+    # Reconstruct boundaries for the chosen k*
     boundaries = reconstruct_boundaries(ptr_table, n, best_k)
 
-    # Step 5: Construct the output histogram using noisy means for k* bins
+    # Construct the output histogram using noisy means for k* bins
     output_histogram = np.zeros_like(noisy_histogram)
     start_idx = 0
     for end_idx in boundaries:
@@ -199,11 +180,11 @@ def histogram_structure_first_dp(user_histogram, epsilon, k, F):
 	"""
 	n = len(user_histogram)
 
-	# Step 1: Split epsilon (simple 50/50 split for demonstration)
+	# Split epsilon (simple 50/50 split for demonstration)
 	epsilon1 = epsilon / 2.0  # For structure perturbation
 	epsilon2 = epsilon / 2.0  # For noise addition to means
 
-	# Step 2: Find optimal k-bin structure on original data
+	# Find optimal k-bin structure on original data
 	# We need the full DP table for error calculation during perturbation
 	dp_table, ptr_table = find_optimal_histogram_dp(
 		user_histogram, k)
@@ -221,7 +202,7 @@ def histogram_structure_first_dp(user_histogram, epsilon, k, F):
 			sse = current_sum_sq - count * (mean**2) if count > 0 else 0
 			sse_cache_orig[i][j] = sse
 
-	# Step 3: Perturb Boundaries using Exponential Mechanism
+	# Perturb Boundaries using Exponential Mechanism
 	perturbed_boundaries = [0] * k  # Store start indices initially
 	perturbed_boundaries[-1] = n  # The end of the last bin is fixed at n
 
@@ -299,7 +280,7 @@ def histogram_structure_first_dp(user_histogram, epsilon, k, F):
 	perturbed_end_boundaries = sorted(perturbed_boundaries)[1:]  # Get end indices b1 to b_{k-1}
 	perturbed_end_boundaries.append(n)  # Add the final end index
 
-	# Step 4: Calculate means from original data and add Laplace noise
+	# Calculate means from original data and add Laplace noise
 	output_histogram = np.zeros_like(user_histogram, dtype=float)
 	start_idx = 0
 	for end_idx in perturbed_end_boundaries:
