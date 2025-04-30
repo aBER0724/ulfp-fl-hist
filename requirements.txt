@@ -3,9 +3,9 @@ torchvision~=0.20.1
 torchaudio
 numpy~=1.25.2
 matplotlib~=3.9.4
-opacus~=1.4.0
+opacus
 seaborn~=0.13.2
 pandas~=2.2.1
 kagglehub
 scikit-learn~=1.4.0
-scipy~=1.15.2
+scipy~=1.13.1

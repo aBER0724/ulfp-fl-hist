@@ -24,7 +24,7 @@ DISTRIBUTE_MODES = ["uniform", "zipf"]
 N_SILOS = [5]
 USER_ALPHAS = [0.5]
 SILO_ALPHAS = [2.0]
-IS_SECURE_OPTIONS = ["ndp", "uldp"]
+IS_SECURE_OPTIONS = ["uldp"]
 IS_HISTOGRAM_SECURE_OPTIONS = ["dp", "nf_dp", "sf_dp"]
 HISTOGRAM_EPSILONS = [1.0, 3.0]
 SIGMAS = [5.0]
@@ -46,7 +46,21 @@ DATASET_PARAMS = {
     }
 }
 
-def run_experiment(params, experiment_idx=None, total=None):
+def create_log_filename(params, timestamp):
+    """Create a log filename based on experiment parameters."""
+    parts = [
+        timestamp,
+        f"dataset_{params['dataset']}",
+        f"dist_{params['distribute_mode']}",
+        f"silos_{params['n_silos']}",
+        f"users_{params['n_users']}",
+        f"secure_{params['is_secure']}",
+        f"hist_{params['is_histogram_secure']}",
+        f"eps_{params['histogram_epsilon']}"
+    ]
+    return "_".join(parts) + ".log"
+
+def run_experiment(params, experiment_idx=None, total=None, log_dir=None, timestamp=None):
     """Run a single experiment with the given parameters."""
     cmd = ["python", "FL/FedAvg.py"]
     
@@ -59,13 +73,31 @@ def run_experiment(params, experiment_idx=None, total=None):
         logger.info(f"Experiment {experiment_idx+1}/{total}")
     logger.info(f"Running: {' '.join(cmd)}")
     
-    # Run the command
-    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout, stderr = process.communicate()
+    # Create log file if log_dir is specified
+    if log_dir and timestamp:
+        os.makedirs(log_dir, exist_ok=True)
+        log_filename = create_log_filename(params, timestamp)
+        log_path = os.path.join(log_dir, log_filename)
+        logger.info(f"Logging output to: {log_path}")
+        
+        with open(log_path, 'w') as log_file:
+            # Write experiment info to log file
+            log_file.write(f"Command: {' '.join(cmd)}\n")
+            log_file.write(f"Parameters: {params}\n")
+            log_file.write(f"Timestamp: {timestamp}\n")
+            log_file.write("="*80 + "\n\n")
+            log_file.flush()
+            
+            # Run the command with output redirected to log file
+            process = subprocess.Popen(cmd, stdout=log_file, stderr=log_file)
+            process.wait()
+    else:
+        # Run the command with output to console
+        process = subprocess.Popen(cmd)
+        process.wait()
     
     if process.returncode != 0:
         logger.error(f"Experiment failed with exit code {process.returncode}")
-        logger.error(f"stderr: {stderr.decode('utf-8')}")
     else:
         logger.info(f"Experiment completed successfully")
     
@@ -149,10 +181,12 @@ def parse_arguments():
     parser.add_argument("--dry_run", action="store_true", help="Print commands without executing them")
     parser.add_argument("--parallel", type=int, default=1, help="Number of experiments to run in parallel")
     parser.add_argument("--limit", type=int, help="Limit the number of experiments to run")
+    parser.add_argument("--log_dir", type=str, default="experiment_logs", help="Directory to store experiment logs")
+    parser.add_argument("--console_output", action="store_true", help="Show experiment output in console instead of log files")
     
     return parser.parse_args()
 
-def run_experiments_sequentially(experiments):
+def run_experiments_sequentially(experiments, log_dir, timestamp, console_output):
     """Run experiments one after another."""
     total_experiments = len(experiments)
     successful = 0
@@ -160,7 +194,13 @@ def run_experiments_sequentially(experiments):
     
     for i, params in enumerate(tqdm(experiments, desc="Running experiments")):
         # Show current experiment details
-        success = run_experiment(params, i, total_experiments)
+        success = run_experiment(
+            params, 
+            i, 
+            total_experiments, 
+            None if console_output else log_dir, 
+            timestamp
+        )
         
         if success:
             successful += 1
@@ -172,11 +212,15 @@ def run_experiments_sequentially(experiments):
     
     return successful, failed
 
-def run_experiments_parallel(experiments, max_workers):
+def run_experiments_parallel(experiments, max_workers, log_dir, timestamp, console_output):
     """Run experiments in parallel."""
     total_experiments = len(experiments)
     successful = 0
     failed = 0
+    
+    if console_output:
+        logger.warning("Note: When running in parallel mode with console output, output from individual experiments may be mixed together.")
+        logger.warning("Consider using log files (remove --console_output) for cleaner output.")
     
     # Create a progress bar
     pbar = tqdm(total=total_experiments, desc="Running experiments")
@@ -186,7 +230,14 @@ def run_experiments_parallel(experiments, max_workers):
         # Prepare the futures
         future_to_idx = {}
         for i, params in enumerate(experiments):
-            future = executor.submit(run_experiment, params)
+            future = executor.submit(
+                run_experiment, 
+                params, 
+                i, 
+                total_experiments, 
+                None if console_output else log_dir, 
+                timestamp
+            )
             future_to_idx[future] = i
         
         # Process the results as they complete
@@ -216,6 +267,14 @@ def main():
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     logger.info(f"Starting experiment batch at {timestamp}")
     
+    # Create log directory if not using console output
+    if not args.console_output:
+        log_dir = f"{args.log_dir}_{timestamp}"
+        os.makedirs(log_dir, exist_ok=True)
+        logger.info(f"Experiment logs will be stored in: {log_dir}")
+    else:
+        log_dir = None
+    
     # Generate all experiment combinations
     all_experiments = generate_experiment_combinations(args)
     total_experiments = len(all_experiments)
@@ -239,16 +298,30 @@ def main():
     # Run experiments
     if args.parallel > 1:
         logger.info(f"Running experiments in parallel with {args.parallel} workers")
-        successful, failed = run_experiments_parallel(all_experiments, args.parallel)
+        successful, failed = run_experiments_parallel(
+            all_experiments, 
+            args.parallel, 
+            log_dir, 
+            timestamp, 
+            args.console_output
+        )
     else:
         logger.info("Running experiments sequentially")
-        successful, failed = run_experiments_sequentially(all_experiments)
+        successful, failed = run_experiments_sequentially(
+            all_experiments, 
+            log_dir, 
+            timestamp, 
+            args.console_output
+        )
     
     # Log final statistics
     logger.info(f"Experiment batch completed")
     logger.info(f"Total experiments: {total_experiments}")
     logger.info(f"Successful: {successful}")
     logger.info(f"Failed: {failed}")
+    
+    if not args.console_output:
+        logger.info(f"Experiment logs are stored in: {log_dir}")
 
 if __name__ == "__main__":
     main() 
