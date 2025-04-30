@@ -78,7 +78,6 @@ def get_data(dataset_name, seed=1):
         test_dataset = TensorDataset(X_test, y_test)
         labels = train_dataset.tensors[1].numpy()
     
-    
     else:
         raise ValueError(f"Unknown dataset {dataset_name}")
 
