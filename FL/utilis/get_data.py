@@ -28,7 +28,7 @@ def get_data(dataset_name, seed=1):
         labels = np.array([data[1] for data in dataset_train])
     elif dataset_name == 'creditcard':
         # 检查信用卡数据集文件是否存在
-        creditcard_path = 'datasets/CreditCard/creditcard.csv'
+        creditcard_path = 'datasets/CreditCard'
         if not os.path.exists(creditcard_path):
             error_msg = (
                 f"Credit Card Dataset do not exist: {creditcard_path}\n"
