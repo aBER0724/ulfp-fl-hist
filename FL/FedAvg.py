@@ -60,7 +60,8 @@ def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epoch
 
     losses = []
     accuracies = []
-
+    consumed_epsilons = []
+    
     for i in range(iters):
 
         logger.info(f"--------------------No.{i} FL--------------------")
@@ -71,11 +72,13 @@ def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epoch
         # 2. Local Training and get average metrics
         avg_loss_total = 0
         avg_acc_total = 0
+        epsilon_total = 0
         for j, silo in enumerate(silos):
             silo.receive_global_model(server.get_model())
             avg_loss, avg_acc = silo.local_silos_sgd(server.get_model(), i)
             avg_loss_total += avg_loss
             avg_acc_total += avg_acc
+            epsilon_total += silo.consumed_epsilon
             logger.info(f"Iter {i} | Silo {j} - Loss: {avg_loss:.4f}, Acc: {avg_acc:.2f}%")
         
         # Calculate overall averages
@@ -92,6 +95,8 @@ def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epoch
         # 5. Record training history
         losses.append(avg_loss)
         accuracies.append(avg_acc)
+        consumed_epsilons.append(epsilon_total)
+        
         logger.info(
             f"Iter {i} - Avg Loss: {avg_loss:.4f}, Avg Acc: {avg_acc:.2f}%")
 
@@ -101,11 +106,13 @@ def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epoch
         'model_state': server.get_model().state_dict(),
         'training_history': {
             'losses': losses,  # Average loss of each iteration
-            'accuracies': accuracies  # Average accuracy of each iteration
+            'accuracies': accuracies,  # Average accuracy of each iteration
+            'consumed_epsilons': consumed_epsilons
         },
         'final_metrics': {
             'final_loss': losses[-1] if losses else float('inf'),
-            'final_accuracy': accuracies[-1] if accuracies else 0.0
+            'final_accuracy': accuracies[-1] if accuracies else 0.0,
+            'final_consumed_epsilon': consumed_epsilons[-1] if consumed_epsilons else 0.0
         },
         'training_config': {
             'n_silos': n_silos,
