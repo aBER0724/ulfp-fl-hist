@@ -7,7 +7,7 @@ datasets/CreditCard/
 datasets/HeartDisease/
 record/*/
 record/*.png
-FL/test/test_output/*.png
+FL/test/test_output/noise_method_comparison/*.png
 FL/record/fedavg_comparison.png
 
 .cursor/rules/*

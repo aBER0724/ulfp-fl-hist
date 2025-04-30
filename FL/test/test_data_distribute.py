@@ -156,8 +156,7 @@ def analyze_distributions(data_indices_of_user, data_indices_of_silo, dataset_tr
 
     return PlotFunctions()
 
-
-def logger.info_detail_of_silo(dataset_object, silo_loaders, silo_datasets):
+def print_info_detail_of_silo(dataset_object, silo_loaders, silo_datasets):
     """
     logger.info details about the dataset distribution across silos
     """
@@ -282,4 +281,4 @@ if __name__ == "__main__":
         elif plot_type == 'heatmap':
             plot_functions.plot_user_distribution_heatmap()
             
-        logger.info_detail_of_silo(dataset_object, silo_loaders, silo_datasets)
+        print_info_detail_of_silo(dataset_object, silo_loaders, silo_datasets)

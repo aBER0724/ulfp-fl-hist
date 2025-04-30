@@ -14,7 +14,7 @@ from model.MLP import PrivateFraudNet, MLPTabular
 from FL.utilis.silo import Silo
 from FL.utilis.server import Server
 from FL.utilis.dataset import Dataset
-from FL.test.test_histogram import visualize_histograms
+from FL.test.test_histogram import compare_noise_methods
 
 
 def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epochs, local_learning_rate, global_learning_rate, user_alpha, silo_alpha, mode, q_for_batch_size, is_secure, is_histogram_secure, histogram_epsilon, delta, sigma, max_grad_norm, max_samples, iters):
@@ -39,6 +39,7 @@ def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epoch
     logger.info("================COMPUTE USER WEIGHT START================")
     
     channel_silos_to_server = []
+    histogram_ks = []
     
     # Silos send user histogram to server
     for i in range(n_silos):
@@ -53,14 +54,7 @@ def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epoch
     # Silos receive user histogram from server
     for i in range(n_silos):
         silos[i].receive_user_histogram(channel_server_to_silos[i])
-    
-    # Visualize histograms if histogram security is enabled
-    if is_histogram_secure:
-        # Create timestamp-based directory for this run's visualizations
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        viz_output_dir = f"record/histogram_viz_{timestamp}_s{n_silos}_u{n_users}_{is_secure}"
-        visualize_histograms(silos, output_dir=viz_output_dir)
-        logger.info(f"Histogram visualizations saved to {viz_output_dir}")
+        histogram_ks.append(silos[i].histogram_k)
 
     logger.info("=============COMPUTE USER WEIGHT FINISHED==============")
     
@@ -120,12 +114,21 @@ def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epoch
             'n_silos': n_silos,
             'n_users': n_users,
             'batch_size': batch_size,
+            'dataset_name': dataset_name,
+            'seed': seed,
             'local_learning_rate': local_learning_rate,
             'global_learning_rate': global_learning_rate,
             'user_alpha': user_alpha,
             'silo_alpha': silo_alpha,
             'sigma': sigma,
-            'mode': mode
+            'mode': mode,
+            'is_secure': is_secure,
+            'is_histogram_secure': is_histogram_secure,
+            'histogram_epsilon': histogram_epsilon,
+            'delta': delta,
+            'max_grad_norm': max_grad_norm,
+            'max_samples': max_samples,
+            'histogram_k': histogram_ks
         }
     }
 
@@ -135,7 +138,7 @@ def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epoch
     os.makedirs(output_dir, exist_ok=True)
     
     # Save as .pth file in the unique directory
-    filename = f"{output_dir}/fedavg_s{n_silos}_u{n_users}_i{iters}_e{local_epochs}_glr{global_learning_rate}_llr{local_learning_rate}_sigma{sigma}_{mode}_{is_secure}.pth"
+    filename = f"{output_dir}/fedavg_{dataset_name}_seed{seed}_{mode}_s{n_silos}_ua{user_alpha}_sa{silo_alpha}_{is_secure}_{is_histogram_secure}_he{histogram_epsilon}_sigma{sigma}_mgn{max_grad_norm}_llr{local_learning_rate}_glr{global_learning_rate}_u{n_users}_i{iters}_e{local_epochs}.pth"
     torch.save(record, filename)
     
     logger.info(f"Training results saved to: {output_dir}")
@@ -160,10 +163,10 @@ if __name__ == "__main__":
     # FL
     parser.add_argument('--iters', type=int, default=20, help='FL iterations')
     parser.add_argument('--local_epoch', type=int, default=5, help='Local epochs')
-    parser.add_argument('--batch_size', type=int, default=32, help='Batch size')
+    parser.add_argument('--batch_size', type=int, default=256, help='Batch size')
     parser.add_argument('--q_for_batch_size', type=float, default=0.1, help='q for batch size')
     parser.add_argument('--local_learning_rate', type=float, default=0.01, help='Local Learning rate')
-    parser.add_argument('--global_learning_rate', type=float, default=10.0, help='Global Learning rate')
+    parser.add_argument('--global_learning_rate', type=float, default=1.0, help='Global Learning rate')
     
     # DP
     parser.add_argument('--is_secure', type=str, choices=['cldp', 'uldp', 'ndp'], default='ndp', help='Available Differential Privacy')
@@ -203,7 +206,6 @@ if __name__ == "__main__":
     sigma = args.sigma
     max_grad_norm = args.max_grad_norm
     
-    # 根据数据集选择合适的模型
     if dataset_name == 'mnist':
         model = CNNMnist()
     elif dataset_name == 'creditcard':

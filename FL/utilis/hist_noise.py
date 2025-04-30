@@ -158,7 +158,7 @@ def histogram_noise_first_dp(user_histogram, epsilon):
     # Post-processing: Round and ensure non-negativity
     final_output = np.maximum(0, np.round(output_histogram)).astype(int)
 
-    return final_output
+    return final_output, best_k
 
 def histogram_structure_first_dp(user_histogram, epsilon, k, F):
 	"""

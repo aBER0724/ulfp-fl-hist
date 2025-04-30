@@ -37,6 +37,7 @@ class Silo:
         self.train_mode = is_secure
         self.histogram_mode = is_histogram_secure
         self.histogram_epsilon = histogram_epsilon
+        self.histogram_k = -1
         self.max_grad_norm = max_grad_norm  # C
         self.delta = delta
         self.sigma = sigma
@@ -80,7 +81,8 @@ class Silo:
             elif self.histogram_mode == "sf_dp":
                 return histogram_structure_first_dp(self.user_histogram, self.histogram_epsilon, int(len(self.user_histogram)/10), 100.0)
             elif self.histogram_mode == "nf_dp":
-                return histogram_noise_first_dp(self.user_histogram, self.histogram_epsilon)
+                noise_histogram, self.histogram_k = histogram_noise_first_dp(self.user_histogram, self.histogram_epsilon)
+                return noise_histogram
             else:
                 return self.user_histogram
         else:

@@ -3,7 +3,7 @@ import torch
 from FL.utilis.get_data import get_data
 
 class Dataset:
-    def __init__(self, dataset_name, n_silos, n_users, user_alpha, silo_alpha, seed=1, mode='zipf', max_samples=None):
+    def __init__(self, dataset_name, n_silos, n_users, user_alpha=0.5, silo_alpha=2.0, seed=1, mode='zipf', max_samples=None):
         """
         Initialize the dataset and divide data into silos and users.
         Params:
