@@ -1,7 +1,7 @@
 from torchvision import datasets, transforms
 import numpy as np
 import torch
-from torch.utils.data import TensorDataset, Dataset
+from torch.utils.data import TensorDataset
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
@@ -10,16 +10,9 @@ import logging
 
 logging.basicConfig(level=logging.INFO, format='[%(asctime)s] - %(message)s', datefmt='%Y-%m-%d %H:%M')
 logger = logging.getLogger(__name__)
-import shutil
-import urllib.request
 
-# Try importing flamby, raise error if not installed
-try:
-    from flamby.datasets.fed_heart_disease import FedHeartDisease
-except ImportError:
-    raise ImportError("The 'flamby' package is required for the heartdisease dataset. Please install it, e.g., 'pip install flamby'")
 
-def get_data(dataset_name):
+def get_data(dataset_name, seed=1):
     if dataset_name == 'mnist':
         # transforms.Compose(): Combined multiple operations.
         # transforms.ToTensor(): Convert images to tensor type.
@@ -44,76 +37,48 @@ def get_data(dataset_name):
             )
             raise FileNotFoundError(error_msg)
         
-        # 加载数据集
-        df = pd.read_csv(creditcard_path)
-            
-        # Handle imbalanced data
-        fraud = df[df['Class'] == 1]
-        non_fraud = df[df['Class'] == 0].sample(n=len(fraud)*5, random_state=42)
-        df_balanced = pd.concat([fraud, non_fraud])
-        
-        # Split features and target
-        X = df_balanced.drop('Class', axis=1).values
-        y = df_balanced['Class'].values
-        
-        # Normalize features
+        random_state = np.np.random.RandomState(seed=seed)
+
+        df = pd.read_csv(os.path.join(creditcard_path, "creditcard.csv"))
+        X = df.drop("Class", axis=1)
+        y = df["Class"]
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=0.15, random_state=random_state, stratify=y
+        )
+
+        # scale the values of x (better training)
         scaler = StandardScaler()
-        X = scaler.fit_transform(X)
-        
-        # Split into train and test sets
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-        
-        # Create PyTorch datasets
-        X_train_tensor = torch.FloatTensor(X_train)
-        y_train_tensor = torch.LongTensor(y_train)
-        X_test_tensor = torch.FloatTensor(X_test)
-        y_test_tensor = torch.LongTensor(y_test)
-        
-        dataset_train = TensorDataset(X_train_tensor, y_train_tensor)
-        dataset_test = TensorDataset(X_test_tensor, y_test_tensor)
-        labels = y_train
-    elif dataset_name == 'heart_disease':
-        logger.info("Loading Heart Disease dataset using FLamby...")
-        # FLamby handles download and preprocessing automatically.
-        # It loads data into memory as PyTorch datasets.
-        # 'pooled=True' gets the entire dataset, which we'll split later if needed by the framework structure.
-        # Note: Flamby might internally handle train/test splits differently depending on the dataset.
-        # FedHeartDisease(pooled=True) returns the *entire* dataset (train+test). We need both.
-        try:
-            # pooled=True combines all centers' data
-            dataset_train = FedHeartDisease(train=True, pooled=True)
-            dataset_test = FedHeartDisease(train=False, pooled=True)
-            
-            # Extract labels from the dataset
-            if hasattr(dataset_train, 'labels'):
-                # FedHeartDisease has a 'labels' attribute
-                labels = dataset_train.labels
-                if isinstance(labels, torch.Tensor):
-                    labels = labels.numpy()
-                else:
-                    labels = np.array(labels)
-            elif hasattr(dataset_train, 'targets'):
-                # If targets is a tensor, convert to numpy
-                if isinstance(dataset_train.targets, torch.Tensor):
-                    labels = dataset_train.targets.numpy()
-                else:
-                    labels = np.array(dataset_train.targets) # Fallback if it's a list/other sequence
-            elif hasattr(dataset_train, '_targets'): # Some datasets use _targets
-                if isinstance(dataset_train._targets, torch.Tensor):
-                    labels = dataset_train._targets.numpy()
-                else:
-                    labels = np.array(dataset_train._targets)
-            else:
-                # If no direct targets attribute, try iterating (less efficient)
-                logger.warning("Could not find labels attribute, iterating to get labels.")
-                labels = np.array([y for _, y in dataset_train])
-             
-            logger.info("FLamby Heart Disease dataset loaded successfully.")
+        scaler.fit(X_train)
+        X_train = scaler.transform(X_train)
+        X_test = scaler.transform(X_test)
 
-        except Exception as e:
-            raise RuntimeError(f"Failed to load Flamby Heart Disease dataset: {e}\n" 
-                               f"Ensure 'flamby' is installed and data can be downloaded (check network/permissions).")
+        X_train = torch.FloatTensor(X_train)
+        X_test = torch.FloatTensor(X_test)
+        y_train = torch.FloatTensor(y_train.values)
+        y_test = torch.FloatTensor(y_test.values)
 
+        percentage = 0.1  # under sampling
+        # sample num = 24584
+        majority_label = 0
+        target_X_train = X_train[y_train == majority_label]
+        target_y_train = y_train[y_train == majority_label]
+        non_target_X_train = X_train[y_train != majority_label]
+        non_target_y_train = y_train[y_train != majority_label]
+        limit_size = int(len(target_X_train) * percentage)
+        selected_indices = random_state.choice(
+            len(target_X_train), size=limit_size, replace=False
+        )
+        target_X_train = target_X_train[selected_indices]
+        target_y_train = target_y_train[selected_indices]
+        X_train = torch.concatenate([non_target_X_train, target_X_train])
+        y_train = torch.concatenate([non_target_y_train, target_y_train])
+        train_dataset = TensorDataset(X_train, y_train)
+
+        train_dataset = TensorDataset(X_train, y_train)
+        test_dataset = TensorDataset(X_test, y_test)
+        labels = train_dataset.tensors[1].numpy()
+    
+    
     else:
         raise ValueError(f"Unknown dataset {dataset_name}")
 

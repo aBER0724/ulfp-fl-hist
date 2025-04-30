@@ -3,15 +3,28 @@ import torch
 from FL.utilis.get_data import get_data
 
 class Dataset:
-    def __init__(self, dataset_name, n_silos, n_users, alpha, seed, distribute_mode, max_samples=None):
+    def __init__(self, dataset_name, n_silos, n_users, user_alpha, silo_alpha, seed=1, mode='zipf', max_samples=None):
+        """
+        Initialize the dataset and divide data into silos and users.
+        Params:
+            dataset_name: Dataset Name
+            n_silos: Silos Number
+            n_users: Users Number
+            user_alpha: User Data Distribution Parameter
+            silo_alpha: Silo Data Distribution Parameter
+            seed: Random Seed
+            mode: Distribution Mode, 'uniform', 'zipf' or 'dirichlet'
+            max_samples: Max samples
+        """
+        self.seed = seed
         self.dataset_name = dataset_name
         self.n_silos = n_silos
         self.n_users = n_users
-        self.alpha = alpha
-        self.seed = seed
-        self.distribute_mode = distribute_mode
+        self.user_alpha = user_alpha
+        self.silo_alpha = silo_alpha
+        self.distribute_mode = mode
         self.max_samples = max_samples
-        self.dataset_train, self.dataset_test, self.labels = get_data(dataset_name)
+        self.dataset_train, self.dataset_test, self.labels = get_data(dataset_name, self.seed)
         self.users_indices_of_data = []
         self.silos_indices_of_data = {i: {user_id: [] for user_id in range(self.n_users)} for i in range(self.n_silos)}
         self.silos_weights = []
@@ -71,10 +84,10 @@ class Dataset:
             )
         else:
             if self.distribute_mode == 'zipf':
-                weights = x ** (-self.alpha)
+                weights = x ** (-self.user_alpha)
                 weights /= weights.sum()
             elif self.distribute_mode == 'dirichlet':
-                weights = np.random.dirichlet([self.alpha] * N)
+                weights = np.random.dirichlet([self.user_alpha] * N)
 
             user_indices_of_data = np.random.choice(
                     x, size=n_data, replace=True, p=weights)
@@ -105,10 +118,10 @@ class Dataset:
                 )
             else:
                 if self.distribute_mode == 'zipf':
-                    weights = x ** (-self.alpha)
+                    weights = x ** (-self.silo_alpha)
                     weights /= weights.sum()
                 elif self.distribute_mode == 'dirichlet':
-                    weights = np.random.dirichlet([self.alpha] * N)
+                    weights = np.random.dirichlet([self.silo_alpha] * N)
 
                 user_data_indices_in_silo = np.random.choice(
                     x, size=len(indices), replace=True, p=weights)

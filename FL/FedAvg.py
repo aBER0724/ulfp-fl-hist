@@ -16,14 +16,8 @@ from FL.utilis.server import Server
 from FL.utilis.dataset import Dataset
 from FL.test.test_histogram import visualize_histograms
 
-# Try importing flamby model for heart disease
-try:
-    from flamby.datasets.fed_heart_disease import Baseline as HeartDiseaseModel # Rename to avoid potential conflicts
-except ImportError:
-    # Handle case where flamby might not be installed (though it should be via requirements)
-    HeartDiseaseModel = None 
 
-def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epochs, local_learning_rate, global_learning_rate, alpha, mode, q_for_batch_size, is_secure, is_histogram_secure, histogram_epsilon, weighting_mode, delta, sigma, max_grad_norm, max_samples, iters):
+def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epochs, local_learning_rate, global_learning_rate, user_alpha, silo_alpha, mode, q_for_batch_size, is_secure, is_histogram_secure, histogram_epsilon, delta, sigma, max_grad_norm, max_samples, iters):
     """
     Params:
         dataset_name: Dataset Name
@@ -37,7 +31,7 @@ def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epoch
         mode: Distribution Mode, 'uniform', 'zipf' or 'dirichlet'
         iters: Iteration Number(fixd as 10)
     """
-    dataset = Dataset(dataset_name, n_silos, n_users, alpha, seed, mode, max_samples)
+    dataset = Dataset(dataset_name, n_silos, n_users, user_alpha, silo_alpha, seed, mode, max_samples)
     
     server = Server(dataset, model, global_learning_rate, is_secure)
     silos = [Silo(i, server, dataset, model, local_learning_rate, q_for_batch_size, local_epochs, is_secure, is_histogram_secure, delta, sigma, max_grad_norm, histogram_epsilon) for i in range(n_silos)]
@@ -128,7 +122,8 @@ def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epoch
             'batch_size': batch_size,
             'local_learning_rate': local_learning_rate,
             'global_learning_rate': global_learning_rate,
-            'alpha': alpha,
+            'user_alpha': user_alpha,
+            'silo_alpha': silo_alpha,
             'sigma': sigma,
             'mode': mode
         }
@@ -155,11 +150,12 @@ if __name__ == "__main__":
     parser.add_argument('--n_users', type=int, default=300, help='Number of users')
 
     # Data Divide
-    parser.add_argument('--dataset', type=str, default='mnist', choices=['mnist', 'creditcard', 'heart_disease'], help='Dataset name')
+    parser.add_argument('--dataset', type=str, default='mnist', choices=['mnist', 'creditcard'], help='Dataset name')
     parser.add_argument('--max_samples', type=int, default=None, help='Max samples')
     parser.add_argument('--seed', type=int, default=1, help='Random seed')
-    parser.add_argument('--alpha', type=float, default=0.5, help='Alpha parameter')
-    parser.add_argument('--distribute_mode', type=str, default='zipf', help='Distribution mode')
+    parser.add_argument('--user_alpha', type=float, default=0.5, help='User Alpha parameter')
+    parser.add_argument('--silo_alpha', type=float, default=2.0, help='Silo Alpha parameter')
+    parser.add_argument('--distribute_mode', type=str, default='zipf', choices=['zipf','dirichlet','uniform'], help='Distribution mode')
 
     # FL
     parser.add_argument('--iters', type=int, default=20, help='FL iterations')
@@ -167,8 +163,7 @@ if __name__ == "__main__":
     parser.add_argument('--batch_size', type=int, default=32, help='Batch size')
     parser.add_argument('--q_for_batch_size', type=float, default=0.1, help='q for batch size')
     parser.add_argument('--local_learning_rate', type=float, default=0.01, help='Local Learning rate')
-    parser.add_argument('--global_learning_rate', type=float, default=1.0, help='Global Learning rate')
-    parser.add_argument('--weighting_mode', type=str, default='', help='Weighting mode')
+    parser.add_argument('--global_learning_rate', type=float, default=10.0, help='Global Learning rate')
     
     # DP
     parser.add_argument('--is_secure', type=str, choices=['cldp', 'uldp', 'ndp'], default='ndp', help='Available Differential Privacy')
@@ -188,7 +183,8 @@ if __name__ == "__main__":
     dataset_name = args.dataset
     max_samples = args.max_samples
     seed = args.seed
-    alpha = args.alpha
+    user_alpha = args.user_alpha
+    silo_alpha = args.silo_alpha
     distribute_mode = args.distribute_mode
     
     # FL
@@ -198,7 +194,6 @@ if __name__ == "__main__":
     q_for_batch_size = args.q_for_batch_size
     global_learning_rate = args.global_learning_rate
     local_learning_rate = args.local_learning_rate
-    weighting_mode = args.weighting_mode
     
     # DP
     is_secure = args.is_secure
@@ -214,11 +209,6 @@ if __name__ == "__main__":
     elif dataset_name == 'creditcard':
         # Use PrivateFraudNet model from uldp-fl
         model = PrivateFraudNet(input_dim=30, hidden_dim=30, num_layers=4)
-    elif dataset_name == 'heart_disease': # Match the name used in get_data.py
-        # Use the Baseline model from Flamby for Heart Disease
-        if HeartDiseaseModel is None:
-            raise ImportError("flamby is required for the heart_disease dataset model but could not be imported.")
-        model = HeartDiseaseModel()
     else:
         raise ValueError(f"Unknown dataset {dataset_name}")
     
@@ -237,13 +227,13 @@ if __name__ == "__main__":
         local_epochs=local_epoch,
         local_learning_rate=local_learning_rate,
         global_learning_rate=global_learning_rate,
-        alpha=alpha,
+        user_alpha=user_alpha,
+        silo_alpha=silo_alpha,
         mode=distribute_mode,
         q_for_batch_size=q_for_batch_size,
         is_secure=is_secure,
         is_histogram_secure=is_histogram_secure,
         histogram_epsilon=histogram_epsilon,
-        weighting_mode=weighting_mode,
         delta=delta,
         sigma=sigma,
         max_grad_norm=max_grad_norm,
