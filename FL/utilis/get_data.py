@@ -72,11 +72,11 @@ def get_data(dataset_name, seed=1):
         target_y_train = target_y_train[selected_indices]
         X_train = torch.concatenate([non_target_X_train, target_X_train])
         y_train = torch.concatenate([non_target_y_train, target_y_train])
-        train_dataset = TensorDataset(X_train, y_train)
+        dataset_train = TensorDataset(X_train, y_train)
 
-        train_dataset = TensorDataset(X_train, y_train)
-        test_dataset = TensorDataset(X_test, y_test)
-        labels = train_dataset.tensors[1].numpy()
+        dataset_train = TensorDataset(X_train, y_train)
+        dataset_test = TensorDataset(X_test, y_test)
+        labels = dataset_train.tensors[1].numpy()
     
     else:
         raise ValueError(f"Unknown dataset {dataset_name}")
