@@ -1,20 +1,17 @@
 import torch
 import os
 import logging
-import sys
 
 logging.basicConfig(level=logging.INFO, format='[%(asctime)s] - %(message)s', datefmt='%Y-%m-%d %H:%M')
 logger = logging.getLogger(__name__)
 import torch.utils.data
-import torch.nn as nn
 import argparse
 from datetime import datetime
 from model.CNN import CNNMnist
-from model.MLP import PrivateFraudNet, MLPTabular
+from model.MLP import PrivateFraudNet
 from FL.utilis.silo import Silo
 from FL.utilis.server import Server
 from FL.utilis.dataset import Dataset
-from FL.test.test_histogram import compare_noise_methods
 
 
 def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epochs, local_learning_rate, global_learning_rate, user_alpha, silo_alpha, mode, q_for_batch_size, is_secure, is_histogram_secure, histogram_epsilon, delta, sigma, max_grad_norm, max_samples, iters):

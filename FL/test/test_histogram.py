@@ -3,7 +3,6 @@ from FL.utilis.server import Server
 from FL.utilis.dataset import Dataset
 from model.CNN import CNNMnist
 import torch
-import argparse
 import matplotlib.pyplot as plt
 import numpy as np
 import logging
