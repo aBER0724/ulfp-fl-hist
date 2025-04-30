@@ -1,7 +1,7 @@
 torch~=2.5.1
 torchvision~=0.20.1
 torchaudio
-numpy==2.2.5
+numpy~=1.25.2
 matplotlib~=3.9.4
 opacus~=1.4.0
 seaborn~=0.13.2
