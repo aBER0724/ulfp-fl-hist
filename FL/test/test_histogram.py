@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 # import logging # Commented out as we are switching to print
 import os
-from FL.utilis.hist_noise import histogram_dp, histogram_structure_first_dp, histogram_noise_first_dp
+from FL.utilis.hist_noise import histogram_dp, Mean_NoiseFirst, Median_NoiseFirst, Mean_StructureFirst, Median_StructureFirst
 
 # logging.basicConfig(level=logging.INFO, format='[%(asctime)s] - %(message)s', datefmt='%Y-%m-%d %H:%M')
 # logger = logging.getLogger(__name__) # Switch to print for debugging parameter output
@@ -231,11 +231,11 @@ if __name__ == "__main__":
     for i, eps in enumerate(epsilons_to_test):
         try:
             print(f"INFO: Running NoiseFirstDP (Epsilon Variation) with: ε={eps}, method='mean'")
-            nf_mean_hist, best_k_m = histogram_noise_first_dp(sample_histogram, eps, method='mean')
+            nf_mean_hist, best_k_m = Mean_NoiseFirst(sample_histogram, eps)
             current_variants_nf_eps.append((f'NF Mean ε={eps} k={best_k_m}', nf_mean_hist, colors_nf[i % len(colors_nf)]))
             
             print(f"INFO: Running NoiseFirstDP (Epsilon Variation) with: ε={eps}, method='median'")
-            nf_median_hist, best_k_d = histogram_noise_first_dp(sample_histogram, eps, method='median')
+            nf_median_hist, best_k_d = Median_NoiseFirst(sample_histogram, eps)
             current_variants_nf_eps.append((f'NF Median ε={eps} k={best_k_d}', nf_median_hist, plt.cm.viridis(i / len(epsilons_to_test) * 0.8 + 0.2) ))
         except Exception as e:
             print(f"ERROR: Error NF ε={eps}: {e}")
@@ -250,11 +250,11 @@ if __name__ == "__main__":
     for i, eps in enumerate(epsilons_to_test):
         try:
             # print(f"INFO: Running SF (Epsilon Var) with: ε={eps}, method='mean', k={k_for_sf_eps_var}, F={default_F}")
-            sf_mean_hist = histogram_structure_first_dp(sample_histogram, eps, k_for_sf_eps_var, default_F, method='mean')
+            sf_mean_hist = Mean_StructureFirst(sample_histogram, eps, k_for_sf_eps_var, default_F)
             current_variants_sf_eps.append((f'SF Mean ε={eps} F={default_F} k={k_for_sf_eps_var}', sf_mean_hist, colors_sf_eps[i % len(colors_sf_eps)]))
             # print(f"INFO: Running SF (Epsilon Var) with: ε={eps}, method='median', k={k_for_sf_eps_var}, F={default_F}")
-            sf_median_hist = histogram_structure_first_dp(sample_histogram, eps, k_for_sf_eps_var, default_F, method='median')
-            current_variants_sf_eps.append((f'SF Median ε={eps} F={default_F} k={k_for_sf_eps_var}', sf_median_hist, plt.cm.plasma(i / len(epsilons_to_test) * 0.8 + 0.1)))
+            sf_median_hist = Median_StructureFirst(sample_histogram, eps, k_for_sf_eps_var)
+            current_variants_sf_eps.append((f'SF Median ε={eps} k={k_for_sf_eps_var}', sf_median_hist, plt.cm.plasma(i / len(epsilons_to_test) * 0.8 + 0.1)))
         except Exception as e:
             print(f"ERROR: Error SF ε={eps} (F={default_F}, k={k_for_sf_eps_var}): {e}")
     plot_comparison_results(sample_histogram, current_variants_sf_eps, sf_eps_output_dir, "sf_epsilon_comp", f"SFDP Epsilon Var (F={default_F}, k_div={default_k_divisor})")
@@ -268,10 +268,10 @@ if __name__ == "__main__":
     for i, F_val in enumerate(Fs_to_test):
         try:
             # print(f"INFO: Running SF (F Var) with: F={F_val}, method='mean', k={k_for_sf_F_var}, ε={default_epsilon}")
-            sf_mean_hist = histogram_structure_first_dp(sample_histogram, default_epsilon, k_for_sf_F_var, F_val, method='mean')
+            sf_mean_hist = Mean_StructureFirst(sample_histogram, default_epsilon, k_for_sf_F_var, F_val)
             current_variants_sf_F.append((f'SF Mean F={F_val} ε={default_epsilon} k={k_for_sf_F_var}', sf_mean_hist, colors_sf_F[i % len(colors_sf_F)]))
             # print(f"INFO: Running SF (F Var) with: F={F_val}, method='median', k={k_for_sf_F_var}, ε={default_epsilon}")
-            sf_median_hist = histogram_structure_first_dp(sample_histogram, default_epsilon, k_for_sf_F_var, F_val, method='median')
+            sf_median_hist = Median_StructureFirst(sample_histogram, default_epsilon, k_for_sf_F_var)
             current_variants_sf_F.append((f'SF Median F={F_val} ε={default_epsilon} k={k_for_sf_F_var}', sf_median_hist, plt.cm.YlOrBr(i / len(Fs_to_test) * 0.7 + 0.3)))
         except Exception as e:
             print(f"ERROR: Error SF F={F_val} (ε={default_epsilon}, k={k_for_sf_F_var}): {e}")
@@ -290,11 +290,11 @@ if __name__ == "__main__":
             continue
         try:
             print(f"INFO: Running SF (k Var) with: k={k_val}, k_div={k_div}, method='mean', F={default_F}, ε={default_epsilon}")
-            sf_mean_hist = histogram_structure_first_dp(sample_histogram, default_epsilon, k_val, default_F, method='mean')
-            current_variants_sf_k.append((f'SF Mean k_div={k_div} (k={k_val}) ε={default_epsilon} F={default_F}', sf_mean_hist, colors_sf_k[i % len(colors_sf_k)])) 
+            sf_mean_hist = Mean_StructureFirst(sample_histogram, default_epsilon, k_val, default_F)
+            current_variants_sf_k.append((f'SF Mean k_div={k_div} (k={k_val}) ε={default_epsilon} F={default_F}', sf_mean_hist, colors_sf_k[i % len(colors_sf_k)]))
             print(f"INFO: Running SF (k Var) with: k={k_val}, k_div={k_div}, method='median', F={default_F}, ε={default_epsilon}")
-            sf_median_hist = histogram_structure_first_dp(sample_histogram, default_epsilon, k_val, default_F, method='median')
-            current_variants_sf_k.append((f'SF Median k_div={k_div} (k={k_val}) ε={default_epsilon} F={default_F}', sf_median_hist, plt.cm.Greens(i / len(k_divisors_to_test) * 0.6 + 0.4))) 
+            sf_median_hist = Median_StructureFirst(sample_histogram, default_epsilon, k_val)
+            current_variants_sf_k.append((f'SF Median k_div={k_div} (k={k_val}) ε={default_epsilon}', sf_median_hist, plt.cm.Greens(i / len(k_divisors_to_test) * 0.6 + 0.4)))
         except Exception as e:
             print(f"ERROR: Error SF k_div={k_div} (ε={default_epsilon}, F={default_F}): {e}")
     plot_comparison_results(sample_histogram, current_variants_sf_k, sf_k_output_dir, "sf_k_comp", f"SFDP k Variation (ε={default_epsilon}, F={default_F})")
@@ -307,11 +307,11 @@ if __name__ == "__main__":
 
     try:
         print(f"INFO: Running NoiseFirstDP (Overall Comparison) with: ε={default_epsilon}, method='mean'")
-        nf_mean_default_eps, best_k_m_def_eps = histogram_noise_first_dp(sample_histogram, default_epsilon, method='mean')
+        nf_mean_default_eps, best_k_m_def_eps = Mean_NoiseFirst(sample_histogram, default_epsilon)
         all_representative_variants.append((f'NF Mean (default ε={default_epsilon}, k={best_k_m_def_eps})', nf_mean_default_eps, 'purple'))
         
         print(f"INFO: Running NoiseFirstDP (Overall Comparison) with: ε={default_epsilon}, method='median'")
-        nf_median_default_eps, best_k_d_def_eps = histogram_noise_first_dp(sample_histogram, default_epsilon, method='median')
+        nf_median_default_eps, best_k_d_def_eps = Median_NoiseFirst(sample_histogram, default_epsilon)
         all_representative_variants.append((f'NF Median (default ε={default_epsilon}, k={best_k_d_def_eps})', nf_median_default_eps, 'indigo'))
     except Exception as e:
         print(f"ERROR: Error generating representative NoiseFirst for overall comparison: {e}")
@@ -319,11 +319,11 @@ if __name__ == "__main__":
     k_for_overall_sf = max(1, int(len(sample_histogram) / default_k_divisor))
     try:
         # print(f"INFO: Running SF (Overall Comparison) with: default params, method='mean'")
-        sf_mean_default_params = histogram_structure_first_dp(sample_histogram, default_epsilon, k_for_overall_sf, default_F, method='mean')
+        sf_mean_default_params = Mean_StructureFirst(sample_histogram, default_epsilon, k_for_overall_sf, default_F)
         all_representative_variants.append((f'SF Mean (default params: ε={default_epsilon}, F={default_F}, k_div={default_k_divisor}, k={k_for_overall_sf})', sf_mean_default_params, 'red'))
         # print(f"INFO: Running SF (Overall Comparison) with: default params, method='median'")
-        sf_median_default_params = histogram_structure_first_dp(sample_histogram, default_epsilon, k_for_overall_sf, default_F, method='median')
-        all_representative_variants.append((f'SF Median (default params: ε={default_epsilon}, F={default_F}, k_div={default_k_divisor}, k={k_for_overall_sf})', sf_median_default_params, 'darkred'))
+        sf_median_default_params = Median_StructureFirst(sample_histogram, default_epsilon, k_for_overall_sf)
+        all_representative_variants.append((f'SF Median (default params: ε={default_epsilon}, k_div={default_k_divisor}, k={k_for_overall_sf})', sf_median_default_params, 'darkred'))
     except Exception as e:
         print(f"ERROR: Error generating representative StructureFirst for overall comparison: {e}")
     

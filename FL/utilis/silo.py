@@ -1,4 +1,4 @@
-from FL.utilis.hist_noise import histogram_dp, histogram_structure_first_dp, histogram_noise_first_dp
+from FL.utilis.hist_noise import histogram_dp, Mean_NoiseFirst, Median_NoiseFirst, Mean_StructureFirst, Median_StructureFirst
 from FL.utilis.sampling import get_data_loaders_uniform_without_replace
 import numpy as np
 import torch.nn as nn
@@ -79,9 +79,15 @@ class Silo:
             if self.histogram_mode == "dp":
                 return histogram_dp(self.user_histogram, self.sigma)
             elif self.histogram_mode == "sf_dp":
-                return histogram_structure_first_dp(self.user_histogram, self.histogram_epsilon, int(len(self.user_histogram)/10), 100.0)
+                # TODO: Decide whether to use Mean_StructureFirst or Median_StructureFirst, and determine F if Mean_StructureFirst is used.
+                # For now, defaulting to Mean_StructureFirst with a placeholder F.
+                # Consider making F configurable or determined dynamically.
+                # Also, the k parameter (int(len(self.user_histogram)/10)) might need adjustment.
+                return Mean_StructureFirst(self.user_histogram, self.histogram_epsilon, int(len(self.user_histogram)/10), 100.0)
             elif self.histogram_mode == "nf_dp":
-                noise_histogram, self.histogram_k = histogram_noise_first_dp(self.user_histogram, self.histogram_epsilon)
+                # TODO: Decide whether to use Mean_NoiseFirst or Median_NoiseFirst.
+                # Defaulting to Mean_NoiseFirst for now.
+                noise_histogram, self.histogram_k = Mean_NoiseFirst(self.user_histogram, self.histogram_epsilon)
                 return noise_histogram
             else:
                 return self.user_histogram

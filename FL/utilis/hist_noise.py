@@ -1,350 +1,562 @@
 import numpy as np
 import math
 
-def calculate_sse(arr, method='mean'):
-    """Calculates the Sum of Squared Errors for a single bin (array segment)."""
+# --- histogram_dp (高斯噪声) ---
+def histogram_dp(user_histogram, sigma):
+    """
+    向用户直方图添加高斯噪声。
+    注意: 这不是论文中 NoiseFirst 或 StructureFirst 的一部分。
+    """
+    noise = np.random.normal(0, sigma, size=len(user_histogram))
+    return np.maximum(0, np.round(user_histogram + noise)).astype(int)
+
+# --- 辅助错误计算函数 ---
+def calculate_sse_mean_repr(arr):
+    """计算给定数组（直方图的一个区间）的平方和误差(SSE)，使用均值作为代表值。"""
     if len(arr) == 0:
         return 0
-    if method == 'mean':
-        representative_value = np.mean(arr)
-    elif method == 'median':
-        representative_value = np.median(arr)
-    else:
-        raise ValueError("Method must be 'mean' or 'median'")
+    representative_value = np.mean(arr)
     return np.sum((arr - representative_value)**2)
 
-def find_optimal_histogram_dp(histogram_data, max_k, method='mean'):
+def calculate_sae_median_repr(arr):
+    """计算给定数组（直方图的一个区间）的绝对值和误差(SAE)，使用中位数作为代表值。"""
+    if len(arr) == 0:
+        return 0
+    representative_value = np.median(arr)
+    return np.sum(np.abs(arr - representative_value))
+
+# --- 通用动态规划函数 ---
+def _find_optimal_histogram_dp_generic(histogram_data, max_k, error_cache):
     """
-    Finds the optimal histogram structures for all k up to max_k using
-    dynamic programming to minimize Sum of Squared Errors (SSE).
+    使用动态规划找到最优直方图结构（最小化总误差）。
+    这是一个通用版本，依赖于预先计算的 error_cache。
+
+    Args:
+        histogram_data: 输入的直方图数据 (一维数组)。
+        max_k: 最大允许的区间数量。
+        error_cache: 一个 n x n 的矩阵，error_cache[i][j] 存储 histogram_data[i...j] 区间的误差。
+
+    Returns:
+        dp_table: DP 表，dp_table[i][j] 表示将前 i 个数据点分为 j 个区间的最小总误差。
+        ptr_table: 指针表，用于回溯重建边界。
     """
     n = len(histogram_data)
-    k = max_k
-    dp = np.full((n + 1, k + 1), np.inf)  # DP table
-    ptr = np.zeros((n + 1, k + 1), dtype=int)  # Point table
-    dp[0][0] = 0
+    k_val = max_k # 使用 k_val 避免与外层 k 冲突
+    dp_table = np.full((n + 1, k_val + 1), np.inf)  # DP 表
+    ptr_table = np.zeros((n + 1, k_val + 1), dtype=int)  # 指针表
+    dp_table[0][0] = 0
 
-    # Precompute SSE for all possible single bins to speed up DP
+    for j_bins in range(1, k_val + 1):  # 区间数量
+        for i_data_end_idx in range(j_bins, n + 1):  # 考虑的数据结束索引 (不包含)
+            min_error_for_i_j = np.inf
+            best_l_for_i_j = -1
+            # l_last_bin_start_idx 是最后一个区间的起始索引 (包含)
+            # 最后一个区间是 histogram_data[l_last_bin_start_idx ... i_data_end_idx-1]
+            for l_last_bin_start_idx in range(j_bins - 1, i_data_end_idx):
+                # 最后一个区间的误差 (数据从索引 l_last_bin_start_idx 到 i_data_end_idx-1)
+                # error_cache 的索引对应原始数据的索引
+                last_bin_error = error_cache[l_last_bin_start_idx][i_data_end_idx-1] if l_last_bin_start_idx < i_data_end_idx else 0
+
+                if np.isfinite(dp_table[l_last_bin_start_idx][j_bins - 1]):
+                    current_total_error = dp_table[l_last_bin_start_idx][j_bins - 1] + last_bin_error
+                    if current_total_error < min_error_for_i_j:
+                        min_error_for_i_j = current_total_error
+                        best_l_for_i_j = l_last_bin_start_idx
+            
+            dp_table[i_data_end_idx][j_bins] = min_error_for_i_j
+            ptr_table[i_data_end_idx][j_bins] = best_l_for_i_j # 存储最后一个区间的起始索引
+
+    return dp_table, ptr_table
+
+def find_optimal_sse_histogram_dp(histogram_data, max_k):
+    """使用动态规划找到最优直方图结构，最小化总 SSE (基于均值代表)。"""
+    n = len(histogram_data)
     sse_cache = np.full((n, n), np.inf)
     for i in range(n):
-        current_sum = 0
-        current_sum_sq = 0 # This logic is now inside calculate_sse for mean if optimized
         for j in range(i, n):
-            # val = histogram_data[j] # Not needed here if calculate_sse takes the subarray
-            # current_sum += val
-            # current_sum_sq += val**2
-            # count = j - i + 1 # Not needed here
-            
             sub_array = histogram_data[i:j+1]
-            # Call calculate_sse to compute SSE for the bin histogram_data[i...j]
-            sse = calculate_sse(sub_array, method=method)
-            sse_cache[i][j] = sse
+            sse_cache[i][j] = calculate_sse_mean_repr(sub_array)
+    return _find_optimal_histogram_dp_generic(histogram_data, max_k, sse_cache)
+
+def find_optimal_sae_histogram_dp(histogram_data, max_k):
+    """使用动态规划找到最优直方图结构，最小化总 SAE (基于中位数代表)。"""
+    n = len(histogram_data)
+    sae_cache = np.full((n, n), np.inf)
+    for i in range(n):
+        for j in range(i, n):
+            sub_array = histogram_data[i:j+1]
+            sae_cache[i][j] = calculate_sae_median_repr(sub_array)
+    return _find_optimal_histogram_dp_generic(histogram_data, max_k, sae_cache)
 
 
-    for j in range(1, k + 1): # Number of bins
-        for i in range(j, n + 1): # End index (exclusive) of data considered
-            min_sse_for_i_j = np.inf
-            best_l_for_i_j = -1
-            for l in range(j - 1, i): # Start index (inclusive) of the last bin
-                # Cost of the last bin (data from index l to i-1)
-                last_bin_sse = sse_cache[l][i-1] if l < i else 0
-
-                # Ensure dp[l][j-1] is finite before adding
-                if np.isfinite(dp[l][j - 1]):
-                    current_sse = dp[l][j - 1] + last_bin_sse
-                    if current_sse < min_sse_for_i_j:
-                        min_sse_for_i_j = current_sse
-                        best_l_for_i_j = l
-
-            dp[i][j] = min_sse_for_i_j
-            ptr[i][j] = best_l_for_i_j # Store the start index of the last bin
-
-    return dp, ptr
-
+# --- 重建边界 ---
 def reconstruct_boundaries(ptr_table, n, k):
-    """Reconstructs the optimal boundaries from the backpointer table."""
+    """根据指针表重建最优边界。"""
     boundaries = []
     current_k = k
     current_idx = n
     while current_k > 0 and current_idx > 0:
         start_index = ptr_table[current_idx][current_k]
-        if start_index < 0 or start_index >= current_idx:
-             # Handle invalid pointer, maybe raise error or use fallback
-             print(f"Warning: Invalid pointer found for k={current_k}, idx={current_idx}. Pointer={start_index}")
-             # Fallback: Add the current_idx and break or try previous k
-             boundaries.append(current_idx) # Add boundary heuristically
-             break # Or implement more sophisticated recovery
-
-
-        boundaries.append(start_index)
+        if start_index < 0 or start_index > current_idx : # 修正: start_index 可以等于 current_idx 吗？ 通常是 <
+             print(f"警告: 发现无效指针 k={current_k}, idx={current_idx}. 指针={start_index}")
+             boundaries.append(current_idx) 
+             break
+        
+        # 边界是区间的起始点，所以我们添加的是 start_index
+        # 最后一个区间的起始点是 ptr_table[n][k]
+        # 它的前一个区间的结束点（也是这个区间的起始点）
+        boundaries.append(start_index) 
         current_idx = start_index
         current_k -= 1
 
-    final_boundaries = sorted(list(set(boundaries)))
-    if 0 in final_boundaries:
-         final_boundaries.remove(0)
-    if n not in final_boundaries:
-        final_boundaries.append(n)
+    # 边界应该是排序的，并且包含0和n
+    # ptr_table 返回的是上一个区间的结束点（即当前区间的起始点，但不包括0）
+    # 例如，如果k=1, ptr[n][1] = 0。boundaries = [0]
+    # 如果k=2, ptr[n][2] = b1, ptr[b1][1] = 0。 boundaries = [b1, 0]
+    
+    final_boundaries = sorted(list(set(boundaries))) # 去重并排序
+    
+    # 确保边界从0开始，到n结束，用于定义区间
+    # reconstruct_boundaries 的目的是返回分割点。
+    # 如果 boundaries 是 [s_k, s_{k-1}, ..., s_1] 其中 s_1=0
+    # 那么区间是 [s_1, s_2-1], [s_2, s_3-1], ..., [s_k, n-1]
+    # 或者更常见的定义是返回区间的结束点 (exclusive)
+    # [0, b1), [b1, b2), ..., [b_{k-1}, n)
+    # 这里的 boundaries 存储的是每个区间的起始索引（除了第一个区间的0）
+    
+    # 我们需要返回 k-1 个分割点，加上最后的 n
+    # 例如，如果最优结构是 [0, idx1), [idx1, idx2), [idx2, n)
+    # reconstruct_boundaries 会从 ptr[n][k] 开始回溯
+    # ptr[n][k] = idx2
+    # ptr[idx2][k-1] = idx1
+    # ptr[idx1][k-2] = 0 (假设k=3)
+    # boundaries 将会是 [idx2, idx1, 0] (顺序可能不同，取决于添加方式)
+    # 排序后是 [0, idx1, idx2]
+    # 我们需要的是 [idx1, idx2, n] 作为结束边界点
+    
+    # 论文中的边界通常指区间的结束点（不包含）或者起始点（包含）
+    # 如果 ptr_table[current_idx][current_k] 存储的是最后一个区间的起始索引 l
+    # 那么这个区间是 [l, current_idx-1]
+    # boundaries 列表收集了这些 l。
+    # 排序后，例如 [0, l2, l3] for k=3 bins, where bins are [0,l2-1], [l2,l3-1], [l3,n-1]
+    # 我们需要的是分割点：l2, l3, n
+    
+    processed_boundaries = []
+    if 0 in final_boundaries: # 移除 DP 基准情况的 0
+        final_boundaries.remove(0)
+    
+    processed_boundaries = sorted(list(set(final_boundaries))) # 确保唯一和有序
+                                                     # 这些是 k-1 个内部边界点
+    
+    # 添加最终的边界 n
+    if n not in processed_boundaries:
+        processed_boundaries.append(n)
 
-    if len(final_boundaries) != k:
-         print(f"Warning: Reconstructed boundaries count {len(final_boundaries)} != k={k}. Boundaries: {final_boundaries}")
+    if len(processed_boundaries) != k and k != 0: # 如果k=0, processed_boundaries 应该是空的
+         # This warning might be too strict if k is small or n is small
+         # print(f"警告: 重建的边界数量 {len(processed_boundaries)} != k={k}. 边界: {processed_boundaries}")
+         pass
 
-    return final_boundaries
 
-def histogram_noise_first_dp(user_histogram, epsilon, method='mean'):
+    return processed_boundaries # 返回的是区间的结束点（不包含起始的0）
+
+# --- NoiseFirst 算法 ---
+def Mean_NoiseFirst(user_histogram, epsilon):
     """
-    Implements the NoiseFirst algorithm with automatic k selection
+    实现 Mean-NoiseFirst 算法 (对应论文 Algorithm 1 和 2)。
+    自动选择 k。
     """
     if epsilon <= 0:
-        raise ValueError("Epsilon must be positive.")
+        raise ValueError("Epsilon 必须为正。")
 
     n = len(user_histogram)
     if n == 0:
-        return np.array([])
+        return np.array([]), 0
 
-    noisy_histogram = np.zeros_like(user_histogram, dtype=float)
-
-    # Add Laplace noise to each bin count
+    # 步骤 1: 添加拉普拉斯噪声 (Algorithm 1, line 1)
     scale = 1.0 / epsilon
     noise = np.random.laplace(0, scale, n)
     noisy_histogram = np.maximum(0, np.round(user_histogram + noise)).astype(int)
 
-    # Run DP to find min SSE for all possible k (1 to n) on noisy data
-    # max_k is n because we need to evaluate all possibilities
-    dp_table, ptr_table = find_optimal_histogram_dp(noisy_histogram, max_k=n, method=method)
+    # 步骤 2: 在噪声数据上运行 DP 找到所有 k 的最小 SSE (Algorithm 1, line 2 preparation)
+    dp_table, ptr_table = find_optimal_sse_histogram_dp(noisy_histogram, max_k=n)
 
-    # Select optimal k* based on Eq. 4 from Xu et al.
+    # 步骤 3: 根据论文 Eq. 4 (Algorithm 2) 选择最优 k*
     best_k = -1
     min_objective_value = np.inf
     epsilon_sq = epsilon**2
 
     for k_candidate in range(1, n + 1):
-        # SSE(H_k*, D_hat) is the min SSE for k bins on noisy data
-        sse_noisy = dp_table[n][k_candidate]
+        sse_noisy = dp_table[n][k_candidate] # SSE(H_k*, D_hat)
 
-        if np.isfinite(sse_noisy): # Only consider valid k values from DP
-            # Objective: Minimize SSE_noisy - (2n - 4k) / epsilon^2
-            # Equivalent to minimizing SSE_noisy * eps^2 - 2n + 4k
-            # Using the form from Eq. 4 directly:
+        if np.isfinite(sse_noisy):
             objective = sse_noisy - (2.0 * n - 4.0 * k_candidate) / epsilon_sq
-
             if objective < min_objective_value:
                 min_objective_value = objective
                 best_k = k_candidate
+    
+    if best_k == -1: # 如果没有找到有效的k (例如所有SSE都是inf)
+        print("警告: 无法自动找到最优k。回退到 k=1。")
+        best_k = 1 if n > 0 else 0
 
-    if best_k == -1:
-        # Fallback if no k is found (e.g., if all SSEs were inf)
-        print("Warning: Could not find optimal k automatically. Falling back to k=1.")
-        best_k = 1 # Or perhaps n, or raise an error
 
-    print(f"Automatically selected k = {best_k}")
-
-    # Reconstruct boundaries for the chosen k*
+    # 为选定的 k* 重建边界
+    # reconstruct_boundaries 返回的是区间的结束点列表 [b1, b2, ..., n]
     boundaries = reconstruct_boundaries(ptr_table, n, best_k)
-
-    # Construct the output histogram using noisy means for k* bins
-    output_histogram = np.zeros_like(noisy_histogram)
+    
+    # 构建输出直方图 (Algorithm 1, line 3)
+    output_histogram = np.zeros_like(noisy_histogram, dtype=float)
     start_idx = 0
     for end_idx in boundaries:
-        # Ensure start_idx is less than end_idx and both are within bounds
         if start_idx < end_idx and start_idx < n and end_idx <= n:
-            bin_data = noisy_histogram[start_idx:end_idx]
-            if len(bin_data) > 0: # Avoid division by zero for empty bins
-                 if method == 'mean':
-                     representative_value = np.mean(bin_data)
-                 elif method == 'median':
-                     representative_value = np.median(bin_data)
-                 else:
-                     raise ValueError("Method must be 'mean' or 'median'")
-                 output_histogram[start_idx:end_idx] = representative_value
-            # else: handle empty bin case if necessary, e.g., fill with 0 or NaN
-        elif start_idx >= end_idx:
-             print(f"Warning: Invalid boundary segment found: start={start_idx}, end={end_idx}. Skipping.")
-        # else: boundary indices out of range, indicates error in reconstruction
-
+            bin_data_noisy = noisy_histogram[start_idx:end_idx]
+            if len(bin_data_noisy) > 0:
+                representative_value = np.mean(bin_data_noisy)
+                output_histogram[start_idx:end_idx] = representative_value
+        elif start_idx >= end_idx and best_k > 0 : # 仅当k>0时，这是一个问题
+             print(f"警告 (Mean_NoiseFirst): 无效边界段: start={start_idx}, end={end_idx} for k={best_k}")
         start_idx = end_idx
-        if start_idx >= n: # Break if we've covered the whole histogram
-             break
-
-    # Post-processing: Round and ensure non-negativity
+        if start_idx >= n:
+            break
+            
     final_output = np.maximum(0, np.round(output_histogram)).astype(int)
-
     return final_output, best_k
 
-def histogram_structure_first_dp(user_histogram, epsilon, k, F, method='mean'):
-	"""
-	Implements the Mean-StructureFirst algorithm for differentially private histograms.
-	"""
-	n = len(user_histogram)
+def Median_NoiseFirst(user_histogram, epsilon):
+    """
+    实现 Median-NoiseFirst 算法 (对应论文 Algorithm 5 和 Section 5.1 的 k 选择)。
+    自动选择 k。
+    """
+    if epsilon <= 0:
+        raise ValueError("Epsilon 必须为正。")
 
-	# Split epsilon (simple 50/50 split for demonstration)
-	epsilon1 = epsilon / 2.0  # For structure perturbation
-	epsilon2 = epsilon / 2.0  # For noise addition to means
+    n = len(user_histogram)
+    if n == 0:
+        return np.array([]), 0
 
-	# Find optimal k-bin structure on original data
-	# We need the full DP table for error calculation during perturbation
-	dp_table, ptr_table = find_optimal_histogram_dp(
-		user_histogram, k, method=method)
-	# Precompute SSE cache on original data if not already done by dp function
-	# This needs to align with the method used in find_optimal_histogram_dp
-	sse_cache_orig = np.full((n, n), np.inf)
-	for i in range(n):
-		current_sum = 0 # Only used if method is 'mean'
-		current_sum_sq = 0 # Not strictly needed here if calculate_sse is used
-		for j in range(i, n):
-			# val = user_histogram[j] # Not needed here
-			# if method == 'mean':
-			# 	current_sum += val
-			# 	current_sum_sq += val**2
-			# 	count = j - i + 1
-			# 	mean_val = current_sum / count
-			# 	sse = current_sum_sq - count * (mean_val**2) if count > 0 else 0
-			# elif method == 'median':
-			# 	sub_array = user_histogram[i:j+1]
-			# 	if len(sub_array) > 0:
-			# 		median_val = np.median(sub_array)
-			# 		sse = np.sum((sub_array - median_val)**2)
-			# 	else:
-			# 		sse = 0
-			# else:
-			# 	raise ValueError("Method must be 'mean' or 'median'")
-			sub_array = user_histogram[i:j+1]
-			sse = calculate_sse(sub_array, method=method)
-			sse_cache_orig[i][j] = sse
+    # 步骤 1: 添加拉普拉斯噪声 (Algorithm 5, line 1)
+    scale = 1.0 / epsilon
+    noise = np.random.laplace(0, scale, n)
+    noisy_histogram = np.maximum(0, np.round(user_histogram + noise)).astype(int)
 
-	# Perturb Boundaries using Exponential Mechanism
-	perturbed_boundaries = [0] * k  # Store start indices initially
-	perturbed_boundaries[-1] = n  # The end of the last bin is fixed at n
+    # 步骤 2: 在噪声数据上运行 DP 找到所有 k 的最小 SAE (Algorithm 5, line 2 preparation)
+    dp_table, ptr_table = find_optimal_sae_histogram_dp(noisy_histogram, max_k=n)
 
-	# Sensitivity for SSE change (as per Lemma 3 in Xu et al. 2013)
-	# Note: This sensitivity depends on the definition (neighboring DB adds/removes 1 count vs changes 1 count)
-	# Using the definition from Lemma 3: |Error' - Error| <= 2F + 1
-	structure_sensitivity = 2.0 * F + 1.0
-	if structure_sensitivity <= 0:
-		structure_sensitivity = 1.0 # Avoid division by zero/negative scale
+    # 步骤 3: 根据论文 Eq. 15 (Section 5.1) 选择最优 k*
+    best_k = -1
+    min_objective_value = np.inf
 
-	# Iterate backwards to determine boundaries
-	current_end_idx = n
-	for j in range(k - 1, 0, -1):  # Determine boundary between bin j-1 and j
-		possible_starts_last_bin = list(range(j, current_end_idx))  # Possible start indices for bin j
-		if not possible_starts_last_bin:  # Cannot form j bins ending at current_end_idx
-			print(
-				f"Warning: Could not find valid split for bin {j} ending at {current_end_idx}")
+    for k_candidate in range(1, n + 1):
+        sae_noisy = dp_table[n][k_candidate] # SAE(H_k*, D_hat)
 
-			perturbed_boundaries[j-1] = perturbed_boundaries[j] if j < k-1 else j-1  # Heuristic fallback
-			current_end_idx = perturbed_boundaries[j-1]
-			continue
+        if np.isfinite(sae_noisy):
+            # 目标: Minimize SAE_noisy - 3(n-k)/epsilon
+            objective = sae_noisy - (3.0 * (n - k_candidate)) / epsilon
+            if objective < min_objective_value:
+                min_objective_value = objective
+                best_k = k_candidate
+    
+    if best_k == -1:
+        print("警告: 无法自动找到最优k。回退到 k=1。")
+        best_k = 1 if n > 0 else 0
 
-		costs = []
-		for q in possible_starts_last_bin:  # q is the potential start index of the last bin (bin j)
-			# Cost = SSE(optimal j-1 bins ending at q-1) + SSE(bin from q to current_end_idx-1)
-			sse_last_bin = sse_cache_orig[q][current_end_idx- \
-				1] if q < current_end_idx else 0
-			# Ensure dp_table index is valid
-			sse_prev_bins = dp_table[q][j] if q >= j else np.inf
-			cost = sse_prev_bins + sse_last_bin
-			costs.append(cost)
+    boundaries = reconstruct_boundaries(ptr_table, n, best_k)
+    
+    # 构建输出直方图 (Algorithm 5, line 3)
+    output_histogram = np.zeros_like(noisy_histogram, dtype=float)
+    start_idx = 0
+    for end_idx in boundaries:
+        if start_idx < end_idx and start_idx < n and end_idx <= n:
+            bin_data_noisy = noisy_histogram[start_idx:end_idx]
+            if len(bin_data_noisy) > 0:
+                representative_value = np.median(bin_data_noisy)
+                output_histogram[start_idx:end_idx] = representative_value
+        elif start_idx >= end_idx and best_k > 0:
+             print(f"警告 (Median_NoiseFirst): 无效边界段: start={start_idx}, end={end_idx} for k={best_k}")
+        start_idx = end_idx
+        if start_idx >= n:
+            break
+            
+    final_output = np.maximum(0, np.round(output_histogram)).astype(int)
+    return final_output, best_k
 
-		costs = np.array(costs)
-		# Probabilities based on exponential mechanism
-		# Scale for exponent sensitivity / (2 * budget_fraction)
-		# Budget fraction per boundary decision is epsilon1 / (k-1)
-		prob_scale = structure_sensitivity / \
-			(2.0 * (epsilon1 / (k - 1))) if k > 1 else structure_sensitivity
-		if prob_scale <= 1e-9:
-			prob_scale = 1e-9 # Avoid division by zero or extremely large exponents
+# --- StructureFirst 算法的辅助函数：边界扰动 ---
+def _perturb_boundaries_exponential_mechanism(
+    dp_table_orig,      # 在原始数据上计算的DP表 (Error(H*(D_i,j), D_i))
+    error_cache_orig,   # 在原始数据上计算的各独立区间的错误缓存 (SSE或SAE)
+    n,                  # 数据点数量
+    k,                  # 期望的区间数量
+    epsilon1,           # 用于结构扰动的隐私预算
+    metric_sensitivity  # 对应错误度量的敏感度 (例如，对SSE是2F+1，对SAE是1)
+):
+    """
+    使用指数机制迭代选择并扰动边界。
+    这是 StructureFirst 算法的核心边界选择逻辑。
+    返回: perturbed_end_boundaries 列表 [r_1, r_2, ..., r_{k-1}, n]
+    """
+    if k < 0: # k 应该是非负的
+        raise ValueError("区间数量 k 不能为负。")
+    if k == 0:
+        return []
+    
+    perturbed_end_boundaries = [0] * k # 初始化列表以存储区间的结束点
+                                     # perturbed_end_boundaries[i] 是第 (i+1) 个区间的结束点(exclusive)
+                                     # 即 r_{i+1}
 
-		# Subtract max cost for numerical stability before exponentiation
-		max_cost = np.max(costs) if len(costs) > 0 else 0
-		log_probs = - (costs - max_cost) / prob_scale  # Negative cost, higher prob for lower cost
+    # 对于 k=1 的情况，只有一个区间，其结束点是 n。没有内部边界需要选择。
+    if k == 1:
+        if n > 0:
+            perturbed_end_boundaries[0] = n
+            return perturbed_end_boundaries
+        else: # n=0, k=1 (或 k=0 已处理)
+            return [] # 或者 [0] 如果约定 k=1 且 n=0 意味着一个空区间在0处结束
 
-		# Handle potential inf values in costs before exponentiation
-		log_probs[np.isinf(costs)] = -np.inf
+    perturbed_end_boundaries[k - 1] = n  # 最后一个区间的结束点 r_k 固定为 n
 
-		# Apply log-space calculations and handle numerical issues
-		# Clip log_probs to prevent extreme values that cause overflow
-		log_probs = np.clip(log_probs, -709, 709)  # Max safe value for exp
-		
-		# Calculate probs in a numerically stable way
-		probs = np.exp(log_probs)
-		
-		# Check for NaN or inf values
-		probs[~np.isfinite(probs)] = 0.0
-		
-		# Normalize probabilities
-		sum_probs = np.sum(probs)
-		if sum_probs > 0:
-			probabilities = probs / sum_probs
-			# Ensure there are no NaN values in the probabilities
-			probabilities[~np.isfinite(probabilities)] = 0.0
-			# Renormalize if needed
-			if np.sum(probabilities) <= 0:
-				probabilities = np.ones_like(probs) / len(probs) if len(probs) > 0 else []
-			elif np.sum(probabilities) < 1.0:
-				probabilities = probabilities / np.sum(probabilities)
-		else:
-			# If all probabilities are zero (e.g., due to inf costs or numerical issues), assign uniform probability
-			print("Warning: Uniform probability fallback in exponential mechanism.")
-			probabilities = np.ones_like(
-				probs) / len(probs) if len(probs) > 0 else []
+    current_fixed_end_idx = n  # 这是 r_{j+1} 在循环中的角色
+                             # (即当前正在考虑的、已固定的右侧大区间的结束点)
 
-		if len(possible_starts_last_bin) > 0 and len(probabilities) == len(possible_starts_last_bin):
-			# Sample the start index for the last bin (bin j)
-			chosen_start_idx = np.random.choice(
-				possible_starts_last_bin, p=probabilities)
-			perturbed_boundaries[j-1] = chosen_start_idx  # This is the start index of bin j
-			current_end_idx = chosen_start_idx  # Update the end for the next iteration (j-1)
-		else:
-			# Handle empty possible_starts or probability mismatch (should not happen with proper checks)
-			print(f"Error: Boundary perturbation failed for bin {j}.")
-			# Fallback or raise error - using previous boundary as fallback
-			perturbed_boundaries[j-1] = perturbed_boundaries[j] if j < k-1 else j-1  # Heuristic fallback
-			current_end_idx = perturbed_boundaries[j-1]
+    # 从右到左，依次确定 k-1 个内部边界点 (r_{k-1}, r_{k-2}, ..., r_1)
+    # j_boundary_idx 对应论文中的 j，表示正在确定第 j 个区间的右边界 r_j
+    for j_boundary_idx in range(k - 1, 0, -1):
+        # 我们正在确定 perturbed_end_boundaries[j_boundary_idx-1]，即 r_j
+        # q_val 是 r_j 的候选值。
+        # 前 j_boundary_idx 个区间覆盖 [0...q_val-1]
+        # 第 (j_boundary_idx+1)-th 个区间是 [q_val...current_fixed_end_idx-1]
+        
+        min_q_val = j_boundary_idx  # r_j 必须至少是 j_boundary_idx (确保前j个区间至少各1个元素)
+        max_q_val = current_fixed_end_idx - 1 # r_j 必须小于 r_{j+1} (即 current_fixed_end_idx)
 
-	# Convert start indices to exclusive end indices: [b1, b2, ..., n]
-	perturbed_end_boundaries = sorted(perturbed_boundaries)[1:]  # Get end indices b1 to b_{k-1}
-	perturbed_end_boundaries.append(n)  # Add the final end index
+        if min_q_val > max_q_val:
+            # 这种情况理论上不应该频繁发生，除非k非常接近n或数据分布极端
+            # 如果发生，意味着无法为当前j_boundary_idx找到有效的分割点q_val
+            # 例如，如果 current_fixed_end_idx = j_boundary_idx，则 max_q_val < min_q_val
+            print(f"警告 (_perturb_boundaries): 无法为边界索引 {j_boundary_idx-1} (r_{j_boundary_idx}) 在 ({min_q_val}, {max_q_val}] 找到有效分割点。"
+                  f"r_{{j+1}}={current_fixed_end_idx}. 使用回退策略。")
+            # 回退策略：将此边界设置为紧邻下一个边界或一个合理的值
+            # chosen_split_point = max_q_val if max_q_val >= min_q_val else min_q_val
+            # 更安全的做法可能是让这个区间为空，或者与前一个合并，但这会改变k
+            # 论文中没有明确指定此情况的回退，通常假设总能找到分割
+            # 一个简单的回退是尽可能地向左推，但不小于min_q_val
+            chosen_split_point = min_q_val 
+            if j_boundary_idx < k -1 and perturbed_end_boundaries[j_boundary_idx] <= chosen_split_point: # 避免 r_j >= r_{j+1}
+                chosen_split_point = perturbed_end_boundaries[j_boundary_idx] -1
+            if chosen_split_point < j_boundary_idx: chosen_split_point = j_boundary_idx
 
-	# Calculate means from original data and add Laplace noise
-	output_histogram = np.zeros_like(user_histogram, dtype=float)
-	start_idx = 0
-	for end_idx in perturbed_end_boundaries:
-		if start_idx < end_idx:  # Ensure the slice is not empty
-			bin_data_orig = user_histogram[start_idx:end_idx]
-			if method == 'mean':
-				representative_orig = np.mean(bin_data_orig)
-			elif method == 'median':
-				representative_orig = np.median(bin_data_orig)
-			else:
-				raise ValueError("Method must be 'mean' or 'median'")
-			bin_width = end_idx - start_idx
 
-			# Laplace noise scale depends on bin width for Mean-StructureFirst
-			noise_scale = (bin_width * epsilon2)
-			if noise_scale <= 1e-9:  # Avoid division by zero or very small scale
-				# Handle case of zero/small scale - perhaps add no noise or a default minimum noise
-				laplace_noise = 0
-				print(
-					f"Warning: Skipping noise for bin [{start_idx}, {end_idx}) due to zero/small scale.")
-			else:
-				scale_param = 1.0 / noise_scale
-				laplace_noise = np.random.laplace(0, scale_param)
+            perturbed_end_boundaries[j_boundary_idx - 1] = chosen_split_point
+            current_fixed_end_idx = chosen_split_point
+            continue
 
-			noisy_representative = representative_orig + laplace_noise
-			output_histogram[start_idx:end_idx] = noisy_representative
-		start_idx = end_idx
+        candidate_split_points_q = list(range(min_q_val, max_q_val + 1))
+        costs = []
 
-	# Post-processing: Round and ensure non-negativity
-	final_output = np.maximum(0, np.round(output_histogram)).astype(int)
+        for q_val in candidate_split_points_q:
+            # E_metric(q, j, r_{j+1}) = Error_DP(H*(D_q, j), D_q) + Error_Segment(D, q, r_{j+1}-1)
+            # dp_table_orig[q_val][j_boundary_idx] 是 Error_DP(H*(D_q, j), D_q)
+            error_prev_bins = dp_table_orig[q_val][j_boundary_idx]
+            
+            # 第 (j_boundary_idx+1)-th 个区间的数据是 user_histogram[q_val ... current_fixed_end_idx-1]
+            # error_cache_orig 的索引是相对于原始数据的
+            error_current_segment = error_cache_orig[q_val][current_fixed_end_idx - 1] if q_val < current_fixed_end_idx else 0
+            
+            cost = error_prev_bins + error_current_segment
+            costs.append(cost)
 
-	return final_output
+        costs = np.array(costs)
+        
+        # 指数机制的概率计算
+        # 尺度参数: (2 * (迭代次数 k-1) * 敏感度) / epsilon1
+        # 注意：这里的 (k-1) 是指总共进行 k-1 次边界选择。
+        # 论文中分母的 (k-1) 是指总的边界扰动次数。
+        # 如果每次迭代都用 epsilon1 / (k-1) 的预算，那么单次迭代的尺度是 (2 * sensitivity) / (epsilon1 / (k-1))
+        # 这里 epsilon1 是已经分配给 *所有* 结构扰动的总预算。
+        # 论文 Algorithm 3, line 7: exp{ -eps1 * E_SSE / (2(k-1)(2F+1)) }
+        #  => 尺度 = (2 * (k-1) * (2F+1)) / eps1
+        # 论文 Algorithm 6, line 7: exp{ -eps1 * E_SAE / (2(k-1)) }
+        #  => 尺度 = (2 * (k-1) * 1) / eps1
+        
+        if k == 1: # 已在函数开始处处理，但作为防御
+             prob_scale_exp = np.inf # 避免在k=1时除以0，虽然此循环不会执行
+        elif epsilon1 <= 1e-9: # epsilon1 为0或极小
+            prob_scale_exp = np.inf # 导致均匀选择（如果成本有限）
+        else:
+            prob_scale_exp = (2.0 * (k - 1) * metric_sensitivity) / epsilon1
+        
+        if prob_scale_exp <= 1e-9: # 避免尺度过小导致数值问题
+             prob_scale_exp = 1e-9
 
-def histogram_dp(user_histogram, sigma):
-	"""
-	Add noise to the user's histogram.
-	"""
-	# Using sigma directly instead of epsilon
-	noise = np.random.normal(0, sigma, size=len(user_histogram))
 
-	# Use np.maximum to ensure values are non-negative
-	return np.maximum(0, np.round(user_histogram + noise)).astype(int)
+        min_c = np.min(costs[np.isfinite(costs)]) if np.any(np.isfinite(costs)) else 0
+        log_probs = -(costs - min_c) / prob_scale_exp
+        log_probs[np.isinf(costs)] = -np.inf 
+
+        log_probs = np.clip(log_probs, -700, 700) 
+        probabilities = np.exp(log_probs)
+        probabilities[~np.isfinite(probabilities)] = 0.0 
+        
+        sum_probs = np.sum(probabilities)
+        if sum_probs > 0:
+            probabilities /= sum_probs
+        else: 
+            # print(f"警告 (_perturb_boundaries): 指数机制中所有概率为零，使用均匀分布。j_boundary_idx={j_boundary_idx}")
+            probabilities = np.ones_like(costs) / len(costs) if len(costs) > 0 else []
+
+        if len(candidate_split_points_q) > 0 and len(probabilities) == len(candidate_split_points_q) and np.sum(probabilities) > 0:
+            chosen_split_point = np.random.choice(candidate_split_points_q, p=probabilities)
+        elif len(candidate_split_points_q) > 0: 
+            # print(f"警告 (_perturb_boundaries): 概率计算故障或候选点不足，从候选点中均匀随机选择。j_boundary_idx={j_boundary_idx}")
+            chosen_split_point = np.random.choice(candidate_split_points_q)
+        else: 
+            # print(f"警告 (_perturb_boundaries): 没有候选分割点。j_boundary_idx={j_boundary_idx}")
+            # 这是一个严重错误，意味着 min_q_val > max_q_val 之前的检查可能不够
+            chosen_split_point = current_fixed_end_idx - 1 # 紧急回退
+            if chosen_split_point < j_boundary_idx : chosen_split_point = j_boundary_idx
+
+
+        perturbed_end_boundaries[j_boundary_idx - 1] = chosen_split_point 
+        current_fixed_end_idx = chosen_split_point
+        
+    return perturbed_end_boundaries
+
+# --- StructureFirst 算法 ---
+def Mean_StructureFirst(user_histogram, epsilon, k, F):
+    """
+    实现 Mean-StructureFirst 算法 (对应论文 Algorithm 3)。
+    Args:
+        user_histogram: 原始直方图数据。
+        epsilon: 总差分隐私预算。
+        k: 期望的区间数量。
+        F: 原始计数的上界。
+    """
+    if epsilon <= 0:
+        raise ValueError("Epsilon 必须为正。")
+    if k < 0: # 允许 k=0 (返回空)
+        raise ValueError("区间数量 k 不能为负。")
+    n = len(user_histogram)
+    
+    if k == 0:
+        return np.array([])
+    if n == 0: # 如果n=0, 那么k必须是0才能有意义
+        return np.array([]) if k==0 else np.array([0]*0) # 或者根据约定返回
+
+    if k > n :
+        # print(f"警告 (Mean_StructureFirst): k ({k}) 大于数据点数量 ({n})。将 k 设为 {n}。")
+        k = n
+
+    epsilon1 = epsilon / 2.0
+    epsilon2 = epsilon / 2.0
+
+    sse_cache_orig = np.full((n, n), np.inf)
+    for i in range(n):
+        for j in range(i, n):
+            sse_cache_orig[i][j] = calculate_sse_mean_repr(user_histogram[i:j+1])
+    
+    # DP表需要计算到k，即使k=n
+    dp_table_orig, _ = _find_optimal_histogram_dp_generic(user_histogram, k, sse_cache_orig)
+
+    structure_sensitivity = 2.0 * F + 1.0
+    if structure_sensitivity <= 0: 
+        structure_sensitivity = 1.0 
+    
+    perturbed_end_boundaries = _perturb_boundaries_exponential_mechanism(
+        dp_table_orig, sse_cache_orig, n, k, epsilon1, structure_sensitivity
+    )
+
+    output_histogram = np.zeros_like(user_histogram, dtype=float)
+    start_idx = 0
+    for end_idx in perturbed_end_boundaries:
+        if start_idx < end_idx and start_idx < n and end_idx <= n:
+            bin_data_orig = user_histogram[start_idx:end_idx]
+            if len(bin_data_orig) > 0:
+                mean_orig = np.mean(bin_data_orig)
+                bin_width = end_idx - start_idx
+                
+                laplace_param_for_mean_noise = (epsilon2 * bin_width)
+                if laplace_param_for_mean_noise <= 1e-9 or epsilon2 == 0: 
+                    laplace_noise_val = 0
+                else:
+                    noise_b_for_laplace = 1.0 / laplace_param_for_mean_noise
+                    laplace_noise_val = np.random.laplace(0, noise_b_for_laplace)
+                
+                noisy_mean = mean_orig + laplace_noise_val
+                output_histogram[start_idx:end_idx] = noisy_mean
+        elif start_idx >= end_idx and k > 0:
+             # This might indicate an issue in boundary perturbation if k > 0 and we get such segments
+             # print(f"警告 (Mean_StructureFirst): 输出构建时无效边界段: start={start_idx}, end={end_idx}")
+             pass
+
+
+        start_idx = end_idx
+        if start_idx >= n and n > 0 : # 只有当n>0时，start_idx>=n才意味着结束
+            break
+            
+    final_output = np.maximum(0, np.round(output_histogram)).astype(int)
+    return final_output
+
+def Median_StructureFirst(user_histogram, epsilon, k):
+    """
+    实现 Median-StructureFirst 算法 (对应论文 Algorithm 6)。
+    Args:
+        user_histogram: 原始直方图数据。
+        epsilon: 总差分隐私预算。
+        k: 期望的区间数量。
+    """
+    if epsilon <= 0:
+        raise ValueError("Epsilon 必须为正。")
+    if k < 0:
+        raise ValueError("区间数量 k 不能为负。")
+    n = len(user_histogram)
+
+    if k == 0:
+        return np.array([])
+    if n == 0:
+        return np.array([]) if k==0 else np.array([0]*0)
+
+
+    if k > n :
+        # print(f"警告 (Median_StructureFirst): k ({k}) 大于数据点数量 ({n})。将 k 设为 {n}。")
+        k = n
+
+    epsilon1 = epsilon / 2.0
+    epsilon2 = epsilon / 2.0
+
+    sae_cache_orig = np.full((n, n), np.inf)
+    for i in range(n):
+        for j in range(i, n):
+            sae_cache_orig[i][j] = calculate_sae_median_repr(user_histogram[i:j+1])
+            
+    dp_table_orig, _ = _find_optimal_histogram_dp_generic(user_histogram, k, sae_cache_orig)
+    
+    structure_sensitivity_sae = 1.0 # Lemma 9
+    
+    perturbed_end_boundaries = _perturb_boundaries_exponential_mechanism(
+        dp_table_orig, sae_cache_orig, n, k, epsilon1, structure_sensitivity_sae
+    )
+    
+    output_histogram = np.zeros_like(user_histogram, dtype=float)
+    start_idx = 0
+    for end_idx in perturbed_end_boundaries:
+        if start_idx < end_idx and start_idx < n and end_idx <= n:
+            bin_data_orig = user_histogram[start_idx:end_idx]
+            if len(bin_data_orig) > 0:
+                median_orig = np.median(bin_data_orig)
+                
+                if epsilon2 <= 1e-9: 
+                    laplace_noise_val = 0
+                else:
+                    # Algorithm 6, line 10: Add Lap(1/epsilon2) to median counts
+                    noise_b_for_laplace = 1.0 / epsilon2 
+                    laplace_noise_val = np.random.laplace(0, noise_b_for_laplace)
+                
+                noisy_median = median_orig + laplace_noise_val
+                output_histogram[start_idx:end_idx] = noisy_median
+        elif start_idx >= end_idx and k > 0:
+             # print(f"警告 (Median_StructureFirst): 输出构建时无效边界段: start={start_idx}, end={end_idx}")
+             pass
+        start_idx = end_idx
+        if start_idx >= n and n > 0:
+            break
+            
+    final_output = np.maximum(0, np.round(output_histogram)).astype(int)
+    return final_output
