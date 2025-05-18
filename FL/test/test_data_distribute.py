@@ -76,16 +76,37 @@ def analyze_distributions(data_indices_of_user, data_indices_of_silo, dataset_tr
                 # User distribution subplot
                 plt.subplot(rows, silos_per_row * 2, row * silos_per_row * 2 + col_base + 1)
                 user_counts = silo_user_distributions[silo_id]
-                top_users = sorted(user_counts.items(),
+                
+                # Handle the case where user_counts could be a list or dictionary
+                if isinstance(user_counts, dict):
+                    top_users = sorted(user_counts.items(),
                                 key=lambda x: x[1], reverse=True)[:10]
-                users = [f'User-{u[0]}' for u in top_users]
-                counts = [u[1] for u in top_users]
+                    users = [f'User-{u[0]}' for u in top_users]
+                    counts = [u[1] for u in top_users]
+                elif isinstance(user_counts, list):
+                    # If it's a list, assume it's already sorted or format it appropriately
+                    top_users = user_counts[:10]
+                    if len(top_users) > 0 and isinstance(top_users[0], tuple):
+                        # If it's a list of tuples (user_id, count)
+                        users = [f'User-{u[0]}' for u in top_users]
+                        counts = [u[1] for u in top_users]
+                    else:
+                        # If it's just a list of counts, create generic labels
+                        users = [f'User-{i}' for i in range(len(top_users))]
+                        counts = top_users
+                else:
+                    # Fallback for unexpected type
+                    users = []
+                    counts = []
+                
                 plt.bar(users, counts, color='skyblue')
                 plt.title(
-                    f'Silo-{silo_id} Top 10 Users\n(Total Users: {len(user_counts)})')
-                plt.xlabel('User ID')
-                plt.ylabel('Samples')
-                plt.xticks(rotation=45)
+                    f'Silo-{silo_id} Top 10 Users\n(Total Users: {len(user_counts) if hasattr(user_counts, "__len__") else "Unknown"})',
+                    fontsize=14)
+                plt.xlabel('User ID', fontsize=12)
+                plt.ylabel('Samples', fontsize=12)
+                plt.xticks(rotation=45, fontsize=10)
+                plt.yticks(fontsize=10)
 
                 # Label distribution subplot
                 plt.subplot(rows, silos_per_row * 2, row * silos_per_row * 2 + col_base + 2)
@@ -94,10 +115,12 @@ def analyze_distributions(data_indices_of_user, data_indices_of_silo, dataset_tr
                 counts = [label_dist[l] for l in labels]
                 plt.bar(labels, counts, color='salmon')
                 plt.title(
-                    f'Silo-{silo_id} Label Distribution\n(Total Samples: {sum(counts)})')
-                plt.xlabel('Label')
-                plt.ylabel('Samples')
-                plt.xticks(range(10), labels, rotation=45, fontsize=8)
+                    f'Silo-{silo_id} Label Distribution\n(Total Samples: {sum(counts)})',
+                    fontsize=14)
+                plt.xlabel('Label', fontsize=12)
+                plt.ylabel('Samples', fontsize=12)
+                plt.xticks(range(10), labels, rotation=45, fontsize=10)
+                plt.yticks(fontsize=10)
 
             plt.tight_layout()
             plt.savefig(
@@ -109,43 +132,94 @@ def analyze_distributions(data_indices_of_user, data_indices_of_silo, dataset_tr
             """
             Plot the heatmap of user distribution.
             """
-            plt.figure(figsize=(25, 10))
+            # 大幅增加图形尺寸以适应可能的大量用户
+            plt.figure(figsize=(60, 20))  # 显著增加宽度以容纳所有用户标签
             user_matrix = []
             silo_ids = sorted(silo_user_distributions.keys())
-            all_users = sorted(set().union(*[dist.keys() for dist in silo_user_distributions.values()]))
+            
+            # Get all unique users while handling both dict and list types
+            all_users = set()
+            for dist in silo_user_distributions.values():
+                if isinstance(dist, dict):
+                    all_users.update(dist.keys())
+                elif isinstance(dist, list):
+                    # If it's a list, extract user IDs with non-zero samples
+                    for user_id, count in enumerate(dist):
+                        if count > 0:
+                            all_users.add(user_id)
+            
+            # 不限制显示的用户数量，显示所有用户
+            # 注意：用户数量可能非常多，可能会导致标签重叠或难以读取
+            
+            all_users = sorted(all_users)
+            
+            # If no users found, log a warning and return
+            if not all_users:
+                logger.warning("No user data found to generate heatmap. Skipping heatmap generation.")
+                plt.close() # Close the figure if it was created
+                return
             
             for silo_id in silo_ids:
                 dist = silo_user_distributions[silo_id]
-                total_samples = sum(dist.values())
-                row = [dist.get(user_id, 0) / total_samples * 100 for user_id in all_users]
+                
+                # Convert to dict format if it's a list
+                if isinstance(dist, list):
+                    # Convert list to dict with index as key
+                    dist_dict = {user_id: dist[user_id] if user_id < len(dist) else 0 
+                               for user_id in all_users}
+                else:
+                    dist_dict = dist
+                
+                total_samples = sum(dist_dict.values()) if dist_dict else 0
+                if total_samples > 0:
+                    row = [dist_dict.get(user_id, 0) / total_samples * 100 for user_id in all_users]
+                else:
+                    row = [0.0 for _ in all_users]  # Use 0.0 for no samples
+                
                 user_matrix.append(row)
             
+            # If no matrix data, create a dummy row
+            if not user_matrix:
+                user_matrix = [[0.0 for _ in all_users]] # Use 0.0 for dummy matrix
+                
+            # 使用更简短的标签格式
             df_users = pd.DataFrame(user_matrix, 
-                                index=[f'Silo-{s}' for s in silo_ids],
-                                columns=[f'User-{u}' for u in all_users])
+                                index=[f'Silo-{s}' for s in silo_ids] if silo_ids else ['S-0'],
+                                columns=[f'User-{i+1}' for i, u in enumerate(all_users)])
+            
+            # Ensure there's some data for plotting
+            if df_users.empty:
+                df_users = pd.DataFrame([[0.0]], index=['Silo-0'], columns=['User-0']) # Use 0.0 for dummy dataframe
             
             plt.subplot(1, 1, 1)
             
-            plt.rcParams.update({'font.size': 8})
+            plt.rcParams.update({'font.size': 14})
             
-            sns.heatmap(df_users, 
-                    annot=True,  # Keep the numerical annotations
-                    fmt='.1f',   # Keep one decimal place
-                    cmap='Reds',  # Change the color scheme to viridis, a perceptually uniform color scheme
-                    annot_kws={'size': 6, 'color': 'white'},  # Change the text color to white, making it easier to see in dark areas
-                    cbar_kws={'label': 'Percentage (%)'})
-            
-            plt.title('User Distribution Across Silos (%)', fontsize=14, pad=20)
-            plt.xlabel('Users', fontsize=12)
-            plt.ylabel('Silos', fontsize=12)
-            
-            plt.xticks(rotation=90, ha='center', fontsize=6)  # Display the user labels vertically
-            plt.yticks(fontsize=10)  # Silo labels remain clear
-            
-            plt.tight_layout()
-            plt.savefig(os.path.join(output_dir, f'distribution_heatmaps_{mode}.png'),
-                    dpi=150, bbox_inches='tight')
-            plt.close()
+            try:
+                sns.heatmap(df_users, 
+                        annot=False,  # 由于用户数量可能很多，移除数值标注
+                        fmt='.1f',   # Keep one decimal place
+                        cmap='Reds',
+                        cbar_kws={'label': 'Percentage (%)'})
+                
+                plt.title('User Distribution Across Silos (%)', fontsize=16, pad=20)
+                plt.xlabel('Users', fontsize=20)
+                plt.ylabel('Silos', fontsize=20)
+                
+                # 调整标签以适应大量用户
+                plt.xticks(rotation=90, ha='center', fontsize=8)  # 减小字体，垂直放置标签
+                plt.yticks(fontsize=14)  # 调整y轴标签大小
+                
+                # 先进行tight_layout，然后再调整底部空间
+                plt.tight_layout()
+                # 确保图表留出足够空间给x轴标签
+                plt.subplots_adjust(bottom=0.4)
+                plt.savefig(os.path.join(output_dir, f'distribution_heatmaps_{mode}.png'),
+                        dpi=150, bbox_inches='tight')
+            except Exception as e:
+                logger.error(f"Error generating heatmap: {e}")
+            finally:
+                plt.close()
 
         def __call__(self):
             """
@@ -172,7 +246,6 @@ def print_info_detail_of_silo(dataset_object, silo_loaders, silo_datasets):
     if dataset_object.max_samples is not None:
         logger.info(f"Max Samples Limit: {dataset_object.max_samples}")
     
-    logger.info(f"Alpha: {dataset_object.alpha}")
     logger.info(f"Seed: {dataset_object.seed}")
     logger.info('------------------------------------------')
 
@@ -187,11 +260,38 @@ def print_info_detail_of_silo(dataset_object, silo_loaders, silo_datasets):
         # logger.info user histogram for this silo
         user_histogram = dataset_object.get_user_histogram(silo_id)
         # Get top 5 users by data count
-        top_users = sorted(user_histogram.items(), key=lambda x: x[1], reverse=True)[:5]
+        if isinstance(user_histogram, dict):
+            top_users = sorted(user_histogram.items(), key=lambda x: x[1], reverse=True)[:5]
+        elif isinstance(user_histogram, list):
+            # If it's a list, assume it represents user counts
+            if user_histogram and isinstance(user_histogram[0], tuple):
+                # If it's a list of tuples (user_id, count)
+                top_users = sorted(user_histogram, key=lambda x: x[1], reverse=True)[:5]
+            else:
+                # If it's just a list of counts, create generic user indices
+                top_users = [(i, count) for i, count in enumerate(user_histogram)]
+                top_users = sorted(top_users, key=lambda x: x[1], reverse=True)[:5]
+        else:
+            # Fallback for unexpected type
+            logger.warning(f"Unexpected user_histogram type: {type(user_histogram)}")
+            top_users = []
+            
         logger.info(f"   Top 5 users in this silo:")
         for user_id, count in top_users:
             logger.info(f"      User-{user_id}: {count} samples")
-        logger.info(f"   Total unique users: {len(user_histogram)}")
+        
+        # Calculate total unique users based on the type of user_histogram
+        if isinstance(user_histogram, dict):
+            total_users = len(user_histogram)
+        elif isinstance(user_histogram, list):
+            if user_histogram and isinstance(user_histogram[0], tuple):
+                total_users = len(user_histogram)
+            else:
+                total_users = len([count for count in user_histogram if count > 0])
+        else:
+            total_users = 0
+            
+        logger.info(f"   Total unique users: {total_users}")
 
     dataset_train = dataset_object.get_whole_train_data()
     for silo_id, dataset in silo_datasets.items():
@@ -204,17 +304,16 @@ def print_info_detail_of_silo(dataset_object, silo_loaders, silo_datasets):
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Test data distribution')
-    parser.add_argument('--n_users', type=int, default=100, help='Number of users')
-    parser.add_argument('--n_silos', type=int, default=10, help='Number of silos')
-    parser.add_argument('--alpha', type=float, default=0.3, help='Alpha parameter')
-    parser.add_argument('--batch_size', type=int, default=128, help='Batch size')
+    parser.add_argument('--n_users', type=int, default=1000, help='Number of users')
+    parser.add_argument('--n_silos', type=int, default=4, help='Number of silos')
+    parser.add_argument('--batch_size', type=int, default=64, help='Batch size')
     parser.add_argument('--seed', type=int, default=114514, help='Random seed')
     parser.add_argument('--dataset', type=str, default='mnist', help='Dataset name')
-    parser.add_argument('--max_samples', type=int, default=1000, help='Maximum number of samples to use')
+    parser.add_argument('--max_samples', type=int, default=10000, help='Maximum number of samples to use')
     parser.add_argument('--plot_type', type=str, default='all', 
                         choices=['all', 'each_silo', 'heatmap'], 
                         help='Type of plot to generate')
-    parser.add_argument('--distribute_mode', type=str, default=None,
+    parser.add_argument('--distribute_mode', type=str, default='zipf',
                         choices=['uniform', 'zipf', 'dirichlet', None],
                         help='Distribution mode (if None, all modes will be tested)')
     
@@ -222,7 +321,6 @@ if __name__ == "__main__":
     
     n_users = args.n_users
     n_silos = args.n_silos
-    alpha = args.alpha
     batch_size = args.batch_size
     seed = args.seed
     dataset_name = args.dataset
@@ -241,9 +339,10 @@ if __name__ == "__main__":
             dataset_name=dataset_name,
             n_silos=n_silos,
             n_users=n_users,
-            alpha=alpha,
+            user_alpha=0.5,
+            silo_alpha=2.0,
             seed=seed,
-            distribute_mode=distribute_mode,
+            mode=distribute_mode,
             max_samples=max_samples
         )
         

@@ -1,14 +1,19 @@
 import numpy as np
 import math
 
-def calculate_sse(arr):
+def calculate_sse(arr, method='mean'):
     """Calculates the Sum of Squared Errors for a single bin (array segment)."""
     if len(arr) == 0:
         return 0
-    mean = np.mean(arr)
-    return np.sum((arr - mean)**2)
+    if method == 'mean':
+        representative_value = np.mean(arr)
+    elif method == 'median':
+        representative_value = np.median(arr)
+    else:
+        raise ValueError("Method must be 'mean' or 'median'")
+    return np.sum((arr - representative_value)**2)
 
-def find_optimal_histogram_dp(histogram_data, max_k):
+def find_optimal_histogram_dp(histogram_data, max_k, method='mean'):
     """
     Finds the optimal histogram structures for all k up to max_k using
     dynamic programming to minimize Sum of Squared Errors (SSE).
@@ -23,15 +28,16 @@ def find_optimal_histogram_dp(histogram_data, max_k):
     sse_cache = np.full((n, n), np.inf)
     for i in range(n):
         current_sum = 0
-        current_sum_sq = 0
+        current_sum_sq = 0 # This logic is now inside calculate_sse for mean if optimized
         for j in range(i, n):
-            val = histogram_data[j]
-            current_sum += val
-            current_sum_sq += val**2
-            count = j - i + 1
-            mean = current_sum / count
-            # SSE = sum(x^2) - n * mean^2
-            sse = current_sum_sq - count * (mean**2) if count > 0 else 0
+            # val = histogram_data[j] # Not needed here if calculate_sse takes the subarray
+            # current_sum += val
+            # current_sum_sq += val**2
+            # count = j - i + 1 # Not needed here
+            
+            sub_array = histogram_data[i:j+1]
+            # Call calculate_sse to compute SSE for the bin histogram_data[i...j]
+            sse = calculate_sse(sub_array, method=method)
             sse_cache[i][j] = sse
 
 
@@ -85,7 +91,7 @@ def reconstruct_boundaries(ptr_table, n, k):
 
     return final_boundaries
 
-def histogram_noise_first_dp(user_histogram, epsilon):
+def histogram_noise_first_dp(user_histogram, epsilon, method='mean'):
     """
     Implements the NoiseFirst algorithm with automatic k selection
     """
@@ -105,7 +111,7 @@ def histogram_noise_first_dp(user_histogram, epsilon):
 
     # Run DP to find min SSE for all possible k (1 to n) on noisy data
     # max_k is n because we need to evaluate all possibilities
-    dp_table, ptr_table = find_optimal_histogram_dp(noisy_histogram, max_k=n)
+    dp_table, ptr_table = find_optimal_histogram_dp(noisy_histogram, max_k=n, method=method)
 
     # Select optimal k* based on Eq. 4 from Xu et al.
     best_k = -1
@@ -144,8 +150,13 @@ def histogram_noise_first_dp(user_histogram, epsilon):
         if start_idx < end_idx and start_idx < n and end_idx <= n:
             bin_data = noisy_histogram[start_idx:end_idx]
             if len(bin_data) > 0: # Avoid division by zero for empty bins
-                 noisy_mean = np.mean(bin_data)
-                 output_histogram[start_idx:end_idx] = noisy_mean
+                 if method == 'mean':
+                     representative_value = np.mean(bin_data)
+                 elif method == 'median':
+                     representative_value = np.median(bin_data)
+                 else:
+                     raise ValueError("Method must be 'mean' or 'median'")
+                 output_histogram[start_idx:end_idx] = representative_value
             # else: handle empty bin case if necessary, e.g., fill with 0 or NaN
         elif start_idx >= end_idx:
              print(f"Warning: Invalid boundary segment found: start={start_idx}, end={end_idx}. Skipping.")
@@ -160,7 +171,7 @@ def histogram_noise_first_dp(user_histogram, epsilon):
 
     return final_output, best_k
 
-def histogram_structure_first_dp(user_histogram, epsilon, k, F):
+def histogram_structure_first_dp(user_histogram, epsilon, k, F, method='mean'):
 	"""
 	Implements the Mean-StructureFirst algorithm for differentially private histograms.
 	"""
@@ -173,19 +184,32 @@ def histogram_structure_first_dp(user_histogram, epsilon, k, F):
 	# Find optimal k-bin structure on original data
 	# We need the full DP table for error calculation during perturbation
 	dp_table, ptr_table = find_optimal_histogram_dp(
-		user_histogram, k)
+		user_histogram, k, method=method)
 	# Precompute SSE cache on original data if not already done by dp function
+	# This needs to align with the method used in find_optimal_histogram_dp
 	sse_cache_orig = np.full((n, n), np.inf)
 	for i in range(n):
-		current_sum = 0
-		current_sum_sq = 0
+		current_sum = 0 # Only used if method is 'mean'
+		current_sum_sq = 0 # Not strictly needed here if calculate_sse is used
 		for j in range(i, n):
-			val = user_histogram[j]
-			current_sum += val
-			current_sum_sq += val**2
-			count = j - i + 1
-			mean = current_sum / count
-			sse = current_sum_sq - count * (mean**2) if count > 0 else 0
+			# val = user_histogram[j] # Not needed here
+			# if method == 'mean':
+			# 	current_sum += val
+			# 	current_sum_sq += val**2
+			# 	count = j - i + 1
+			# 	mean_val = current_sum / count
+			# 	sse = current_sum_sq - count * (mean_val**2) if count > 0 else 0
+			# elif method == 'median':
+			# 	sub_array = user_histogram[i:j+1]
+			# 	if len(sub_array) > 0:
+			# 		median_val = np.median(sub_array)
+			# 		sse = np.sum((sub_array - median_val)**2)
+			# 	else:
+			# 		sse = 0
+			# else:
+			# 	raise ValueError("Method must be 'mean' or 'median'")
+			sub_array = user_histogram[i:j+1]
+			sse = calculate_sse(sub_array, method=method)
 			sse_cache_orig[i][j] = sse
 
 	# Perturb Boundaries using Exponential Mechanism
@@ -237,12 +261,27 @@ def histogram_structure_first_dp(user_histogram, epsilon, k, F):
 		# Handle potential inf values in costs before exponentiation
 		log_probs[np.isinf(costs)] = -np.inf
 
+		# Apply log-space calculations and handle numerical issues
+		# Clip log_probs to prevent extreme values that cause overflow
+		log_probs = np.clip(log_probs, -709, 709)  # Max safe value for exp
+		
+		# Calculate probs in a numerically stable way
 		probs = np.exp(log_probs)
-
+		
+		# Check for NaN or inf values
+		probs[~np.isfinite(probs)] = 0.0
+		
 		# Normalize probabilities
 		sum_probs = np.sum(probs)
 		if sum_probs > 0:
 			probabilities = probs / sum_probs
+			# Ensure there are no NaN values in the probabilities
+			probabilities[~np.isfinite(probabilities)] = 0.0
+			# Renormalize if needed
+			if np.sum(probabilities) <= 0:
+				probabilities = np.ones_like(probs) / len(probs) if len(probs) > 0 else []
+			elif np.sum(probabilities) < 1.0:
+				probabilities = probabilities / np.sum(probabilities)
 		else:
 			# If all probabilities are zero (e.g., due to inf costs or numerical issues), assign uniform probability
 			print("Warning: Uniform probability fallback in exponential mechanism.")
@@ -272,7 +311,12 @@ def histogram_structure_first_dp(user_histogram, epsilon, k, F):
 	for end_idx in perturbed_end_boundaries:
 		if start_idx < end_idx:  # Ensure the slice is not empty
 			bin_data_orig = user_histogram[start_idx:end_idx]
-			mean_orig = np.mean(bin_data_orig)
+			if method == 'mean':
+				representative_orig = np.mean(bin_data_orig)
+			elif method == 'median':
+				representative_orig = np.median(bin_data_orig)
+			else:
+				raise ValueError("Method must be 'mean' or 'median'")
 			bin_width = end_idx - start_idx
 
 			# Laplace noise scale depends on bin width for Mean-StructureFirst
@@ -286,8 +330,8 @@ def histogram_structure_first_dp(user_histogram, epsilon, k, F):
 				scale_param = 1.0 / noise_scale
 				laplace_noise = np.random.laplace(0, scale_param)
 
-			noisy_mean = mean_orig + laplace_noise
-			output_histogram[start_idx:end_idx] = noisy_mean
+			noisy_representative = representative_orig + laplace_noise
+			output_histogram[start_idx:end_idx] = noisy_representative
 		start_idx = end_idx
 
 	# Post-processing: Round and ensure non-negativity

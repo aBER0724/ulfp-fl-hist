@@ -167,18 +167,18 @@ if __name__ == "__main__":
     # FL
     parser.add_argument('--iters', type=int, default=20, help='FL iterations')
     parser.add_argument('--local_epoch', type=int, default=5, help='Local epochs')
-    parser.add_argument('--batch_size', type=int, default=256, help='Batch size')
+    parser.add_argument('--batch_size', type=int, default=64, help='Batch size')
     parser.add_argument('--q_for_batch_size', type=float, default=0.1, help='q for batch size')
-    parser.add_argument('--local_learning_rate', type=float, default=0.01, help='Local Learning rate')
-    parser.add_argument('--global_learning_rate', type=float, default=1.0, help='Global Learning rate')
+    parser.add_argument('--local_learning_rate', type=float, default=0.001, help='Local Learning rate')
+    parser.add_argument('--global_learning_rate', type=float, default=5.0, help='Global Learning rate')
     
     # DP
     parser.add_argument('--is_secure', type=str, choices=['cldp', 'uldp', 'ndp'], default='ndp', help='Available Differential Privacy')
     parser.add_argument('--is_histogram_secure', type=str, default='', choices=['dp','nf_dp', 'sf_dp'], help='Histogram Differential Privacy')
     parser.add_argument('--histogram_epsilon', type=float, default=1.0, help='Histogram Epsilon')
     parser.add_argument('--delta', type=float, default=1e-5, help='Delta parameter')
-    parser.add_argument('--sigma', type=float, default=5.0, help='Sigma parameter')
-    parser.add_argument('--max_grad_norm', type=float, default=1.2, help='Max gradient norm')
+    parser.add_argument('--sigma', type=float, default=1.0, help='Sigma parameter')
+    parser.add_argument('--max_grad_norm', type=float, default=1.0, help='Max gradient norm')
     
     args = parser.parse_args()
     
@@ -218,7 +218,8 @@ if __name__ == "__main__":
     else:
         raise ValueError(f"Unknown dataset {dataset_name}")
     
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "mps")
     model = model.to(device)
     print(f"Training device: {device}")
     

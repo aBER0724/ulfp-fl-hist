@@ -37,7 +37,7 @@ def get_data(dataset_name, seed=1):
             )
             raise FileNotFoundError(error_msg)
         
-        random_state = np.np.random.RandomState(seed=seed)
+        random_state = np.random.RandomState(seed=seed)
 
         df = pd.read_csv(os.path.join(creditcard_path, "creditcard.csv"))
         X = df.drop("Class", axis=1)

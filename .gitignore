@@ -8,6 +8,10 @@ datasets/HeartDisease/
 record/*/
 record/*.png
 FL/test/test_output/noise_method_comparison/*.png
+FL/test/test_output/adv_histogram_comparisons
+FL/test/test_output/*.png
 FL/record/fedavg_comparison.png
+record.zip
+
 
 .cursor/rules/*

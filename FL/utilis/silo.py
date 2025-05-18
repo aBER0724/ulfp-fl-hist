@@ -201,11 +201,7 @@ class Silo:
                 avg_loss = 0
                 avg_acc = 0
 
-            # Update epsilon consumption with actual spent amount
-            self.consumed_epsilon += epsilon_spent_this_round
-            logger.info(
-                f"Iter {current_iter} | Silo {self.id} accumulated ε={self.consumed_epsilon:.4f} (with σ={self.sigma}, δ={self.delta})")
-
+            
             # Update the model with the weighted average of the user's models
             with torch.no_grad():
                 for key in self.model.state_dict():
@@ -224,10 +220,18 @@ class Silo:
                         weighted_delta = self.user_weight_list[i] * clipped_delta
                         aggregated_delta += weighted_delta
 
-                    noise_std = self.sigma * self.max_grad_norm / math.sqrt(len(user_model_list))
+                    noise_std = self.sigma * self.max_grad_norm / math.sqrt(valid_user_count)
                     noise = torch.randn_like(aggregated_delta) * noise_std
                     aggregated_delta += noise
                     self.model.state_dict()[key] += aggregated_delta
+
+            # 聚合添加噪声的场景下，考虑用户数量
+            epsilon_spent_this_round = (math.sqrt(valid_user_count) * math.sqrt(2 * math.log(1.25 / self.delta))) / self.sigma
+            # Update epsilon consumption with actual spent amount
+            self.consumed_epsilon += epsilon_spent_this_round
+            logger.info(
+                f"Iter {current_iter} | Silo {self.id} accumulated ε={self.consumed_epsilon:.4f} (with σ={self.sigma}, δ={self.delta})")
+
         else:
             self.model = copy.deepcopy(global_model)
             self.model = self.model.to(self.device)
@@ -294,8 +298,8 @@ class Silo:
             epoch_avg_loss = epoch_loss / len(train_loader)
             epoch_avg_acc = epoch_correct / epoch_samples * 100.0
 
-            logger.info(
-                f"Iter {current_iter} | Silo {self.id} | Epoch {epoch} | Loss = {epoch_avg_loss:.4f}, Accuracy = {epoch_avg_acc:.2f}%")
+            # logger.info(
+            #     f"Iter {current_iter} | Silo {self.id} | Epoch {epoch} | Loss = {epoch_avg_loss:.4f}, Accuracy = {epoch_avg_acc:.2f}%")
 
             total_loss += epoch_avg_loss
             total_acc += epoch_avg_acc
