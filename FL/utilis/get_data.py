@@ -57,8 +57,7 @@ def get_data(dataset_name, seed=1):
         y_train = torch.FloatTensor(y_train.values)
         y_test = torch.FloatTensor(y_test.values)
 
-        percentage = 0.1  # under sampling
-        # sample num = 24584
+        percentage = 0.1  # 下采样
         majority_label = 0
         target_X_train = X_train[y_train == majority_label]
         target_y_train = y_train[y_train == majority_label]
@@ -82,3 +81,12 @@ def get_data(dataset_name, seed=1):
         raise ValueError(f"Unknown dataset {dataset_name}")
 
     return dataset_train, dataset_test, labels
+
+if __name__ == "__main__":
+    
+    # dataset_name = 'mnist'
+    dataset_name = 'creditcard'
+    
+    dataset_train, dataset_test, labels = get_data(dataset_name)
+    print(f"训练集大小: {len(dataset_train)} 样本")
+    print(f"测试集大小: {len(dataset_test)} 样本")
