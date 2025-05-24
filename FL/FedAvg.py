@@ -16,17 +16,35 @@ from FL.utilis.dataset import Dataset
 
 def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epochs, local_learning_rate, global_learning_rate, user_alpha, silo_alpha, mode, q_for_batch_size, is_secure, is_histogram_secure, histogram_epsilon, delta, sigma, max_grad_norm, max_samples, iters):
     """
-    Params:
-        dataset_name: Dataset Name
-        model: FL Model
-        n_silos: Silos Number
-        seed: Random Seed
-        batch_size: Batch Size
-        local_epochs: Local Epochs
-        learning_rate: Local Learning Rate
-        alpha: Distribution Parameter
-        mode: Distribution Mode, 'uniform', 'zipf' or 'dirichlet'
-        iters: Iteration Number(fixd as 10)
+    Performs the Federated Averaging (FedAvg) algorithm.
+
+    This function simulates a federated learning process involving a central server and multiple silos.
+    It handles data distribution, local training in silos, model aggregation at the server,
+    and optionally incorporates differential privacy mechanisms.
+
+    Args:
+        dataset_name (str): Name of the dataset to use (e.g., 'mnist', 'creditcard').
+        model (torch.nn.Module): The PyTorch model to be trained.
+        n_silos (int): The total number of silos participating in the FL process.
+        n_users (int): The total number of users whose data is distributed among silos.
+        seed (int): Random seed for reproducibility of data distribution and other stochastic processes.
+        batch_size (int): Batch size used for local training within each silo.
+        local_epochs (int): Number of epochs each silo trains locally in each FL round.
+        local_learning_rate (float): Learning rate for the local optimizer in silos.
+        global_learning_rate (float): Learning rate or aggregation weight for the server's global model update.
+        user_alpha (float): Parameter controlling data distribution heterogeneity among users (e.g., for Zipf or Dirichlet).
+        silo_alpha (float): Parameter controlling data distribution heterogeneity among silos.
+        mode (str): Data distribution mode ('uniform', 'zipf', 'dirichlet').
+        q_for_batch_size (float): Sampling rate q, used by silos to determine their effective batch size,
+                                  often relevant for privacy accounting (e.g., q = batch_size / N_samples_in_silo).
+        is_secure (str): Specifies the type of differential privacy for model updates ('cldp', 'uldp', 'ndp' for none).
+        is_histogram_secure (str): Specifies DP for user histograms ('dp', 'nf_dp', 'sf_dp', or '' for none).
+        histogram_epsilon (float): Epsilon value for histogram differential privacy if `is_histogram_secure` is enabled.
+        delta (float): Delta parameter for (epsilon, delta)-differential privacy.
+        sigma (float): Noise multiplier (standard deviation of Gaussian noise relative to sensitivity) for DP.
+        max_grad_norm (float): Clipping threshold for gradients to ensure sensitivity for DP.
+        max_samples (int, optional): Maximum number of samples to use from the dataset. If None, uses all samples.
+        iters (int): Total number of federated learning rounds (iterations).
     """
     dataset = Dataset(dataset_name, n_silos, n_users, user_alpha, silo_alpha, seed, mode, max_samples)
     

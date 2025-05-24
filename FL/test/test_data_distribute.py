@@ -13,17 +13,33 @@ logging.basicConfig(level=logging.INFO, format='[%(asctime)s] - %(message)s', da
 logger = logging.getLogger(__name__)
 
 def analyze_distributions(data_indices_of_user, data_indices_of_silo, dataset_train, silo_datasets, mode, dataset_object=None):
-    """ 
-    Analyze the distribution of users and labels
+    """
+    Analyzes and prepares data for visualizing the distribution of data samples
+    across users and silos, as well as label distributions within silos.
+
     Args:
-        data_indices_of_user: Dictionary mapping data indices to user IDs
-        data_indices_of_silo: Dictionary mapping data indices to silo IDs
-        dataset_train: Training dataset
-        silo_datasets: Dataset for each silo
-        mode: Data distribution mode
-        dataset_object: Dataset object containing the get_user_histogram method
+        data_indices_of_user (dict): A dictionary mapping user IDs to a list of
+                                     data indices assigned to that user.
+                                     Example: {user_id: [idx1, idx2, ...]}
+        data_indices_of_silo (dict): A nested dictionary mapping silo IDs to user IDs,
+                                     and then to a list of data indices.
+                                     Example: {silo_id: {user_id: [idx_a, idx_b, ...]}}
+                                     Alternatively, if `dataset_object` is provided, this might
+                                     not be directly used if `get_user_histogram` is preferred.
+        dataset_train (torch.utils.data.Dataset): The full training dataset, used to get labels.
+        silo_datasets (dict): A dictionary mapping silo IDs to their respective
+                              torch.utils.data.Subset datasets.
+                              Example: {silo_id: <Subset object>}
+        mode (str): A string identifier for the data distribution mode (e.g., 'zipf', 'uniform'),
+                    used for naming output files.
+        dataset_object (FL.utilis.dataset.Dataset, optional): An instance of the Dataset class.
+                               If provided, its `get_user_histogram` method is used to
+                               determine user distribution per silo, which can be more direct
+                               than recalculating from `data_indices_of_silo`.
+
     Returns:
-        An object containing all plotting functions
+        PlotFunctions: An instance of the inner PlotFunctions class, which contains methods
+                       to generate and save the distribution plots.
     """
 
     # Create a dictionary mapping data indices to user IDs
@@ -62,7 +78,11 @@ def analyze_distributions(data_indices_of_user, data_indices_of_silo, dataset_tr
         @staticmethod
         def plot_silos_distribution():
             """
-            Plot the distribution of users and labels for each silo
+            Generates and saves a plot showing the top N user distributions (sample counts)
+            and label distributions for each silo.
+
+            The plot will display multiple subplots, with each silo having two:
+            one for user sample counts and one for label counts.
             """
             n_silos = len(silo_datasets)
             silos_per_row = 4  # Increased from 2 to 4 silos per row
@@ -130,7 +150,11 @@ def analyze_distributions(data_indices_of_user, data_indices_of_silo, dataset_tr
         @staticmethod
         def plot_user_distribution_heatmap():
             """
-            Plot the heatmap of user distribution.
+            Generates and saves a heatmap visualizing the percentage of each user's data
+            (or sample count contribution) within each silo.
+
+            The heatmap shows silos on the y-axis and users on the x-axis.
+            Cell values represent the proportion of a user's samples within a specific silo.
             """
             # 大幅增加图形尺寸以适应可能的大量用户
             plt.figure(figsize=(60, 20))  # 显著增加宽度以容纳所有用户标签
@@ -223,7 +247,8 @@ def analyze_distributions(data_indices_of_user, data_indices_of_silo, dataset_tr
 
         def __call__(self):
             """
-            Call all plotting functions
+            Executes all available plotting functions in the PlotFunctions class.
+            Currently, this calls `plot_silos_distribution` and `plot_user_distribution_heatmap`.
             """
             self.plot_silos_distribution()
             self.plot_user_distribution_heatmap()
@@ -232,7 +257,18 @@ def analyze_distributions(data_indices_of_user, data_indices_of_silo, dataset_tr
 
 def print_info_detail_of_silo(dataset_object, silo_loaders, silo_datasets):
     """
-    logger.info details about the dataset distribution across silos
+    Logs detailed information about the data distribution across silos and users.
+
+    This includes overall dataset parameters, per-silo sample counts, batch information,
+    top users within each silo, total unique users per silo, and label distributions per silo.
+
+    Args:
+        dataset_object (FL.utilis.dataset.Dataset): The main Dataset object containing
+                                                     all configuration and distribution information.
+        silo_loaders (dict): A dictionary mapping silo IDs to their PyTorch DataLoaders.
+                             Used here to get batch information.
+        silo_datasets (dict): A dictionary mapping silo IDs to their torch.utils.data.Subset
+                              datasets. Used for label distribution analysis.
     """
     logger.info(f"MODE: {dataset_object.distribute_mode}")
     logger.info(f"Users Number: {dataset_object.n_users}")

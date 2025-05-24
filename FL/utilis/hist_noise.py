@@ -4,22 +4,54 @@ import math
 # --- histogram_dp (高斯噪声) ---
 def histogram_dp(user_histogram, sigma):
     """
-    向用户直方图添加高斯噪声。
-    注意: 这不是论文中 NoiseFirst 或 StructureFirst 的一部分。
+    Adds Gaussian noise to a user histogram for differential privacy.
+
+    Args:
+        user_histogram (np.ndarray): The original histogram data (counts per bin).
+        sigma (float): The standard deviation of the Gaussian noise to be added.
+                       This is related to the sensitivity of the query and the privacy budget.
+
+    Returns:
+        np.ndarray: The noisy histogram, with counts rounded to the nearest integer
+                    and floored at 0.
     """
     noise = np.random.normal(0, sigma, size=len(user_histogram))
     return np.maximum(0, np.round(user_histogram + noise)).astype(int)
 
 # --- 辅助错误计算函数 ---
 def calculate_sse_mean_repr(arr):
-    """计算给定数组（直方图的一个区间）的平方和误差(SSE)，使用均值作为代表值。"""
+    """
+    Calculates the Sum of Squared Errors (SSE) for a given array segment,
+    using the mean of the segment as the representative value for all elements.
+
+    This is often used in histogram optimization problems to quantify the error
+    introduced by representing a range of bins with a single value (the mean).
+
+    Args:
+        arr (np.ndarray): A 1D NumPy array representing a segment of a histogram.
+
+    Returns:
+        float: The Sum of Squared Errors (SSE) for the segment. Returns 0 if the array is empty.
+    """
     if len(arr) == 0:
         return 0
     representative_value = np.mean(arr)
     return np.sum((arr - representative_value)**2)
 
 def calculate_sae_median_repr(arr):
-    """计算给定数组（直方图的一个区间）的绝对值和误差(SAE)，使用中位数作为代表值。"""
+    """
+    Calculates the Sum of Absolute Errors (SAE) for a given array segment,
+    using the median of the segment as the representative value for all elements.
+
+    Similar to SSE, SAE is used in histogram optimization, particularly when
+    median-based representation is preferred (e.g., for robustness to outliers).
+
+    Args:
+        arr (np.ndarray): A 1D NumPy array representing a segment of a histogram.
+
+    Returns:
+        float: The Sum of Absolute Errors (SAE) for the segment. Returns 0 if the array is empty.
+    """
     if len(arr) == 0:
         return 0
     representative_value = np.median(arr)
@@ -28,17 +60,29 @@ def calculate_sae_median_repr(arr):
 # --- 通用动态规划函数 ---
 def _find_optimal_histogram_dp_generic(histogram_data, max_k, error_cache):
     """
-    使用动态规划找到最优直方图结构（最小化总误差）。
-    这是一个通用版本，依赖于预先计算的 error_cache。
+    Finds the optimal histogram structure (minimizing total error) using dynamic programming.
+    This is a generic version that relies on a precomputed `error_cache`.
+
+    This function is an internal helper for `find_optimal_sse_histogram_dp` and
+    `find_optimal_sae_histogram_dp`.
 
     Args:
-        histogram_data: 输入的直方图数据 (一维数组)。
-        max_k: 最大允许的区间数量。
-        error_cache: 一个 n x n 的矩阵，error_cache[i][j] 存储 histogram_data[i...j] 区间的误差。
+        histogram_data (np.ndarray): The input histogram data (1D array of counts).
+        max_k (int): The maximum number of bins (partitions) allowed in the output histogram.
+        error_cache (np.ndarray): A precomputed n x n matrix where `error_cache[i][j]`
+                                  stores the error of representing `histogram_data[i...j]`
+                                  as a single segment. The type of error (SSE, SAE)
+                                  depends on how this cache was populated.
 
     Returns:
-        dp_table: DP 表，dp_table[i][j] 表示将前 i 个数据点分为 j 个区间的最小总误差。
-        ptr_table: 指针表，用于回溯重建边界。
+        tuple[np.ndarray, np.ndarray]:
+            - dp_table: A (n+1) x (max_k+1) DP table where `dp_table[i][j]` stores the
+                        minimum total error for partitioning the first `i` data points
+                        of `histogram_data` into `j` bins.
+            - ptr_table: A (n+1) x (max_k+1) pointer table used to reconstruct the
+                         optimal bin boundaries. `ptr_table[i][j]` stores the starting
+                         index of the last bin when partitioning the first `i` points
+                         into `j` bins.
     """
     n = len(histogram_data)
     k_val = max_k # 使用 k_val 避免与外层 k 冲突
@@ -69,7 +113,20 @@ def _find_optimal_histogram_dp_generic(histogram_data, max_k, error_cache):
     return dp_table, ptr_table
 
 def find_optimal_sse_histogram_dp(histogram_data, max_k):
-    """使用动态规划找到最优直方图结构，最小化总 SSE (基于均值代表)。"""
+    """
+    Finds the optimal histogram structure that minimizes the total Sum of Squared Errors (SSE),
+    using dynamic programming. Each bin is represented by the mean of its original values.
+
+    Args:
+        histogram_data (np.ndarray): The input histogram data (1D array of counts).
+        max_k (int): The maximum number of bins allowed in the output histogram.
+
+    Returns:
+        tuple[np.ndarray, np.ndarray]:
+            - dp_table: The DP table storing minimum SSEs.
+            - ptr_table: The pointer table for reconstructing boundaries.
+            (See `_find_optimal_histogram_dp_generic` for details on tables).
+    """
     n = len(histogram_data)
     sse_cache = np.full((n, n), np.inf)
     for i in range(n):
@@ -79,7 +136,20 @@ def find_optimal_sse_histogram_dp(histogram_data, max_k):
     return _find_optimal_histogram_dp_generic(histogram_data, max_k, sse_cache)
 
 def find_optimal_sae_histogram_dp(histogram_data, max_k):
-    """使用动态规划找到最优直方图结构，最小化总 SAE (基于中位数代表)。"""
+    """
+    Finds the optimal histogram structure that minimizes the total Sum of Absolute Errors (SAE),
+    using dynamic programming. Each bin is represented by the median of its original values.
+
+    Args:
+        histogram_data (np.ndarray): The input histogram data (1D array of counts).
+        max_k (int): The maximum number of bins allowed in the output histogram.
+
+    Returns:
+        tuple[np.ndarray, np.ndarray]:
+            - dp_table: The DP table storing minimum SAEs.
+            - ptr_table: The pointer table for reconstructing boundaries.
+            (See `_find_optimal_histogram_dp_generic` for details on tables).
+    """
     n = len(histogram_data)
     sae_cache = np.full((n, n), np.inf)
     for i in range(n):
@@ -91,7 +161,23 @@ def find_optimal_sae_histogram_dp(histogram_data, max_k):
 
 # --- 重建边界 ---
 def reconstruct_boundaries(ptr_table, n, k):
-    """根据指针表重建最优边界。"""
+    """
+    Reconstructs the optimal bin boundaries from the pointer table generated by
+    the dynamic programming histogram optimization.
+
+    Args:
+        ptr_table (np.ndarray): The pointer table from `_find_optimal_histogram_dp_generic`.
+                                `ptr_table[i][j]` stores the starting index of the
+                                last bin when partitioning the first `i` points into `j` bins.
+        n (int): The total number of data points in the original histogram.
+        k (int): The number of bins for which to reconstruct boundaries.
+
+    Returns:
+        list[int]: A list of integers representing the end points (exclusive) of the
+                   reconstructed bins. For `k` bins, this list will contain `k` values
+                   `[b_1, b_2, ..., b_k]`, where the bins are `[0, b_1)`, `[b_1, b_2)`, ...,
+                   `[b_{k-1}, b_k=n)`. Returns an empty list if k=0.
+    """
     boundaries = []
     current_k = k
     current_idx = n
@@ -163,8 +249,27 @@ def reconstruct_boundaries(ptr_table, n, k):
 # --- NoiseFirst 算法 ---
 def Mean_NoiseFirst(user_histogram, epsilon):
     """
-    实现 Mean-NoiseFirst 算法 (对应论文 Algorithm 1 和 2)。
-    自动选择 k。
+    Implements the Mean-NoiseFirst algorithm for differentially private histogram publication.
+    This corresponds to Algorithms 1 and 2 in the referenced literature (e.g., Qardaji et al.).
+    It automatically selects the optimal number of bins `k` by minimizing an objective function.
+
+    The algorithm first adds Laplace noise to the original histogram, then finds the
+    optimal k-bin histogram structure on this noisy data that minimizes SSE, and finally
+    selects the `k` that minimizes `SSE_noisy - (2n - 4k) / epsilon^2`.
+
+    Args:
+        user_histogram (np.ndarray): The original non-private histogram counts.
+        epsilon (float): The differential privacy budget (must be positive).
+
+    Returns:
+        tuple[np.ndarray, int]:
+            - final_output (np.ndarray): The differentially private histogram with `best_k` bins,
+                                         where each bin's value is the (noisy) mean of the
+                                         original noisy counts in that bin. Counts are rounded
+                                         and non-negative.
+            - best_k (int): The automatically selected optimal number of bins.
+    Raises:
+        ValueError: If epsilon is not positive.
     """
     if epsilon <= 0:
         raise ValueError("Epsilon 必须为正。")
@@ -224,8 +329,28 @@ def Mean_NoiseFirst(user_histogram, epsilon):
 
 def Median_NoiseFirst(user_histogram, epsilon):
     """
-    实现 Median-NoiseFirst 算法 (对应论文 Algorithm 5 和 Section 5.1 的 k 选择)。
-    自动选择 k。
+    Implements the Median-NoiseFirst algorithm for differentially private histogram publication.
+    This corresponds to Algorithm 5 and the k-selection strategy from Section 5.1
+    in the referenced literature (e.g., Qardaji et al.).
+    It automatically selects the optimal number of bins `k`.
+
+    The algorithm first adds Laplace noise, then finds the optimal k-bin structure on
+    this noisy data that minimizes SAE, and finally selects `k` that minimizes
+    `SAE_noisy - 3(n - k) / epsilon`.
+
+    Args:
+        user_histogram (np.ndarray): The original non-private histogram counts.
+        epsilon (float): The differential privacy budget (must be positive).
+
+    Returns:
+        tuple[np.ndarray, int]:
+            - final_output (np.ndarray): The differentially private histogram with `best_k` bins,
+                                         where each bin's value is the (noisy) median of the
+                                         original noisy counts in that bin. Counts are rounded
+                                         and non-negative.
+            - best_k (int): The automatically selected optimal number of bins.
+    Raises:
+        ValueError: If epsilon is not positive.
     """
     if epsilon <= 0:
         raise ValueError("Epsilon 必须为正。")
@@ -290,9 +415,33 @@ def _perturb_boundaries_exponential_mechanism(
     metric_sensitivity  # 对应错误度量的敏感度 (例如，对SSE是2F+1，对SAE是1)
 ):
     """
-    使用指数机制迭代选择并扰动边界。
-    这是 StructureFirst 算法的核心边界选择逻辑。
-    返回: perturbed_end_boundaries 列表 [r_1, r_2, ..., r_{k-1}, n]
+    Iteratively selects and perturbs histogram bin boundaries using the exponential mechanism.
+    This is a core component of the StructureFirst algorithms.
+
+    The function determines `k-1` internal split points `r_1, ..., r_{k-1}` from right to left.
+    The quality score for choosing a split point `q` for `r_j` (given `r_{j+1}`) is based on
+    minimizing `Error_DP(H*(D_q, j), D_q) + Error_Segment(D, q, r_{j+1}-1)`, where `Error_DP`
+    is the error of the optimal `j`-bin histogram on `D[0...q-1]` and `Error_Segment` is the
+    error of representing `D[q...r_{j+1}-1]` as one bin.
+
+    Args:
+        dp_table_orig (np.ndarray): The DP table computed on the original (non-noisy) data,
+                                    where `dp_table_orig[i][j]` is the min error for
+                                    partitioning the first `i` points into `j` bins.
+        error_cache_orig (np.ndarray): Precomputed error for any segment `[i...j]` on original data.
+        n (int): Total number of data points (length of the original histogram).
+        k (int): The desired number of bins in the final histogram.
+        epsilon1 (float): The privacy budget allocated for perturbing all `k-1` boundaries.
+        metric_sensitivity (float): The sensitivity of the error metric used (e.g., `2F+1` for SSE
+                                    with mean, `1` for SAE with median).
+
+    Returns:
+        list[int]: A list of `k` perturbed end boundaries `[r_1, r_2, ..., r_k=n]`.
+                   These define `k` bins: `[0, r_1)`, `[r_1, r_2)`, ..., `[r_{k-1}, r_k=n)`.
+                   Returns an empty list if k=0.
+
+    Raises:
+        ValueError: If k is negative.
     """
     if k < 0: # k 应该是非负的
         raise ValueError("区间数量 k 不能为负。")
@@ -422,12 +571,27 @@ def _perturb_boundaries_exponential_mechanism(
 # --- StructureFirst 算法 ---
 def Mean_StructureFirst(user_histogram, epsilon, k, F):
     """
-    实现 Mean-StructureFirst 算法 (对应论文 Algorithm 3)。
+    Implements the Mean-StructureFirst algorithm for differentially private histogram publication.
+    This corresponds to Algorithm 3 in the referenced literature (e.g., Qardaji et al.).
+
+    The algorithm first perturbs the bin boundaries using the exponential mechanism
+    (allocating `epsilon/2` budget), then adds Laplace noise to the mean count of each
+    resulting bin (allocating `epsilon/2` budget).
+
     Args:
-        user_histogram: 原始直方图数据。
-        epsilon: 总差分隐私预算。
-        k: 期望的区间数量。
-        F: 原始计数的上界。
+        user_histogram (np.ndarray): The original non-private histogram counts.
+        epsilon (float): The total differential privacy budget (must be positive).
+        k (int): The desired number of bins in the output histogram (must be non-negative).
+                 If k=0, an empty array is returned. If k > n, k is capped at n.
+        F (float): An upper bound on the counts in the original `user_histogram`. This is used
+                   to determine the sensitivity for boundary perturbation with SSE.
+
+    Returns:
+        np.ndarray: The differentially private histogram. Counts are rounded and non-negative.
+                    Returns an empty array if k=0 or n=0.
+
+    Raises:
+        ValueError: If epsilon is not positive or k is negative.
     """
     if epsilon <= 0:
         raise ValueError("Epsilon 必须为正。")
@@ -496,11 +660,25 @@ def Mean_StructureFirst(user_histogram, epsilon, k, F):
 
 def Median_StructureFirst(user_histogram, epsilon, k):
     """
-    实现 Median-StructureFirst 算法 (对应论文 Algorithm 6)。
+    Implements the Median-StructureFirst algorithm for differentially private histogram publication.
+    This corresponds to Algorithm 6 in the referenced literature (e.g., Qardaji et al.).
+
+    The algorithm first perturbs the bin boundaries using the exponential mechanism
+    (allocating `epsilon/2` budget), then adds Laplace noise to the median count of each
+    resulting bin (allocating `epsilon/2` budget).
+
     Args:
-        user_histogram: 原始直方图数据。
-        epsilon: 总差分隐私预算。
-        k: 期望的区间数量。
+        user_histogram (np.ndarray): The original non-private histogram counts.
+        epsilon (float): The total differential privacy budget (must be positive).
+        k (int): The desired number of bins in the output histogram (must be non-negative).
+                 If k=0, an empty array is returned. If k > n, k is capped at n.
+
+    Returns:
+        np.ndarray: The differentially private histogram. Counts are rounded and non-negative.
+                    Returns an empty array if k=0 or n=0.
+
+    Raises:
+        ValueError: If epsilon is not positive or k is negative.
     """
     if epsilon <= 0:
         raise ValueError("Epsilon 必须为正。")

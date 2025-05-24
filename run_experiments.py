@@ -47,7 +47,18 @@ DATASET_PARAMS = {
 }
 
 def create_log_filename(params, timestamp):
-    """Create a log filename based on experiment parameters."""
+    """
+    Creates a structured log filename based on experiment parameters and a timestamp.
+
+    Args:
+        params (dict): A dictionary containing the parameters for the experiment.
+                       Expected keys include 'dataset', 'distribute_mode', 'n_silos',
+                       'n_users', 'is_secure', 'is_histogram_secure', 'histogram_epsilon'.
+        timestamp (str): A timestamp string (e.g., "YYYYMMDD_HHMMSS") to prefix the log file.
+
+    Returns:
+        str: A log filename string (e.g., "YYYYMMDD_HHMMSS_dataset_mnist_dist_uniform_....log").
+    """
     parts = [
         timestamp,
         f"dataset_{params['dataset']}",
@@ -61,7 +72,31 @@ def create_log_filename(params, timestamp):
     return "_".join(parts) + ".log"
 
 def run_experiment(params, experiment_idx=None, total=None, log_dir=None, timestamp=None):
-    """Run a single experiment with the given parameters."""
+    """
+    Runs a single federated learning experiment using FL/FedAvg.py with the given parameters.
+
+    This function constructs a command, executes it as a subprocess, and handles logging
+    of the experiment's output.
+
+    Args:
+        params (dict): A dictionary of parameters to be passed as command-line arguments
+                       to FL/FedAvg.py.
+        experiment_idx (int, optional): The index of the current experiment (for logging).
+        total (int, optional): The total number of experiments being run (for logging).
+        log_dir (str, optional): The directory where log files should be stored.
+                                 If None, output goes to console.
+        timestamp (str, optional): A timestamp string used for creating unique log filenames
+                                   if log_dir is specified.
+
+    Returns:
+        bool: True if the experiment subprocess completed with a return code of 0, False otherwise.
+
+    Side Effects:
+        - Executes `FL/FedAvg.py` as a subprocess.
+        - If `log_dir` and `timestamp` are provided, creates a log file in `log_dir`
+          and writes the experiment's stdout and stderr to it.
+        - Logs information about the experiment execution using the `logger`.
+    """
     cmd = ["python", "FL/FedAvg.py"]
     
     # Add all parameters to command
@@ -104,7 +139,20 @@ def run_experiment(params, experiment_idx=None, total=None, log_dir=None, timest
     return process.returncode == 0
 
 def generate_experiment_combinations(args):
-    """Generate all combinations of experiment parameters."""
+    """
+    Generates a list of all possible experiment parameter combinations.
+
+    It considers base parameters and dataset-specific parameters. Filters can be applied
+    via the `args` object to narrow down the combinations.
+
+    Args:
+        args (argparse.Namespace): Parsed command-line arguments that may contain
+                                   filters for datasets, distribution modes, security options, etc.
+
+    Returns:
+        list[dict]: A list where each element is a dictionary representing
+                    a unique set of parameters for an experiment.
+    """
     all_experiments = []
     
     # Use filtered parameters based on command line arguments
@@ -167,6 +215,15 @@ def generate_experiment_combinations(args):
     return all_experiments
 
 def parse_arguments():
+    """
+    Parses command-line arguments for the experiment runner script.
+
+    Defines arguments for filtering experiments (e.g., by dataset, number of users)
+    and for controlling execution (e.g., dry run, parallelism, logging).
+
+    Returns:
+        argparse.Namespace: An object containing the parsed command-line arguments.
+    """
     parser = argparse.ArgumentParser(description="Run multiple FL experiments with different parameter combinations")
     
     # Filters for experiment parameters
@@ -187,7 +244,19 @@ def parse_arguments():
     return parser.parse_args()
 
 def run_experiments_sequentially(experiments, log_dir, timestamp, console_output):
-    """Run experiments one after another."""
+    """
+    Runs a list of experiments sequentially, one after another.
+
+    Args:
+        experiments (list[dict]): A list of parameter dictionaries, each defining an experiment.
+        log_dir (str, optional): Directory to store log files. If None, output to console.
+        timestamp (str): Timestamp string for log file naming.
+        console_output (bool): If True, directs experiment output to console instead of log files.
+
+    Returns:
+        tuple[int, int]: A tuple containing the number of successful experiments
+                         and the number of failed experiments.
+    """
     total_experiments = len(experiments)
     successful = 0
     failed = 0
@@ -213,7 +282,21 @@ def run_experiments_sequentially(experiments, log_dir, timestamp, console_output
     return successful, failed
 
 def run_experiments_parallel(experiments, max_workers, log_dir, timestamp, console_output):
-    """Run experiments in parallel."""
+    """
+    Runs a list of experiments in parallel using a process pool.
+
+    Args:
+        experiments (list[dict]): A list of parameter dictionaries, each defining an experiment.
+        max_workers (int): The maximum number of parallel processes to use.
+        log_dir (str, optional): Directory to store log files. If None, output to console.
+        timestamp (str): Timestamp string for log file naming.
+        console_output (bool): If True, directs experiment output to console. Note that
+                               output may be interleaved when running in parallel with console output.
+
+    Returns:
+        tuple[int, int]: A tuple containing the number of successful experiments
+                         and the number of failed experiments.
+    """
     total_experiments = len(experiments)
     successful = 0
     failed = 0
@@ -260,6 +343,13 @@ def run_experiments_parallel(experiments, max_workers, log_dir, timestamp, conso
     return successful, failed
 
 def main():
+    """
+    Main function to set up and run federated learning experiments.
+
+    Parses command-line arguments, generates experiment parameter combinations,
+    and then runs these experiments either sequentially or in parallel based on
+    the provided arguments. Logs results and outputs.
+    """
     # Parse command line arguments
     args = parse_arguments()
     

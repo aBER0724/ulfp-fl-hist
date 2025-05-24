@@ -16,7 +16,40 @@ logger = logging.getLogger(__name__)
 
 
 class Silo:
-    def __init__(self, silo_id, server, dataset, model, learning_rate, q_for_batch_size, epoch_num, is_secure='ndp', is_histogram_secure='', delta=1e-5, sigma=5.0, max_grad_norm=1.0, max_data_number=1000, histogram_epsilon=1.0):
+    def __init__(self, silo_id, server, dataset,
+                 model, learning_rate, q_for_batch_size, epoch_num,
+                 is_secure='ndp', is_histogram_secure='', delta=1e-5,
+                 sigma=5.0, max_grad_norm=1.0, histogram_F=100.0,
+                 histogram_epsilon=1.0, histogram_k_div = 10):
+        """
+        Initializes a Silo instance.
+
+        Args:
+            silo_id (int): Unique identifier for the silo.
+            server (FL.utilis.server.Server): Reference to the central server instance.
+            dataset (FL.utilis.dataset.Dataset): Reference to the dataset object, used to get
+                                                 silo-specific data and user distributions.
+            model (torch.nn.Module): The initial model architecture.
+            learning_rate (float): Learning rate for local training.
+            q_for_batch_size (float): Sampling rate q, fraction of silo's data to form a minibatch
+                                      (e.g., 0.1 for 10% of data).
+            epoch_num (int): Number of local training epochs per FL round.
+            is_secure (str, optional): Specifies the DP mode for model training.
+                                       'ndp' (non-private), 'cldp' (client-level DP via Opacus),
+                                       'uldp' (user-level DP, custom implementation). Defaults to 'ndp'.
+            is_histogram_secure (str, optional): Specifies DP mode for user histograms.
+                                                 'dp' (Gaussian noise), 'sf_dp' (StructureFirst),
+                                                 'nf_dp' (NoiseFirst), '' (non-private). Defaults to ''.
+            delta (float, optional): Target delta for (epsilon, delta)-DP. Defaults to 1e-5.
+            sigma (float, optional): Noise multiplier for DP mechanisms. Defaults to 5.0.
+            max_grad_norm (float, optional): Gradient clipping norm (C). Defaults to 1.0.
+            histogram_F (float, optional): Upper bound on histogram counts, used for sensitivity
+                                           in StructureFirst with SSE. Defaults to 100.0.
+            histogram_epsilon (float, optional): Epsilon for histogram DP. Defaults to 1.0.
+            histogram_k_div (int, optional): Divisor to determine `k` (number of bins) for
+                                             StructureFirst/NoiseFirst based on histogram length
+                                             (k = len(hist) / k_div). Defaults to 10.
+        """
         self.id = silo_id
         self.server = server
         self.device = torch.device(
@@ -28,7 +61,7 @@ class Silo:
         self.criterion = nn.CrossEntropyLoss()
         self.silo_data_indices = dataset.get_silos_indices(silo_id)
         self.user_histogram = dataset.get_user_histogram(silo_id)
-        self.user_weight_list = [1 for _ in range(len(self.user_histogram))]
+        self.user_weight_list = [1.0 for _ in range(len(self.user_histogram))]
         self.epoch_num = epoch_num
         self.learning_rate = learning_rate
         self.iterations = 1
@@ -37,15 +70,19 @@ class Silo:
         self.train_mode = is_secure
         self.histogram_mode = is_histogram_secure
         self.histogram_epsilon = histogram_epsilon
+        self.histogram_F = histogram_F
         self.histogram_k = -1
-        self.max_grad_norm = max_grad_norm  # C
+        self.histogram_k_div = histogram_k_div
+
+        self.max_grad_norm = max_grad_norm
         self.delta = delta
         self.sigma = sigma
         self.dataset = dataset
-        self.consumed_epsilon = 0.0  # Initialize accumulated privacy budget consumption
+        self.consumed_epsilon = 0.0
+
         indices_arr = []
-        for user_id, data in self.silo_data_indices.items():
-            indices_arr.extend(data)
+        for user_id, data_list_for_user in self.silo_data_indices.items():
+            indices_arr.extend(data_list_for_user)
 
         self.silo_data = dataset.get_dataset(indices_arr)
         self.microbatch_size = 1  # mini_batch -> micro_batch
@@ -60,62 +97,118 @@ class Silo:
 
     def get_model(self):
         """
-        Get the local model.
+        Returns the current local model of the silo.
+
+        Returns:
+            torch.nn.Module: The silo's local model.
         """
         return self.model
 
     def receive_global_model(self, global_model):
         """
-        Receive the global model from the server.
+        Receives and updates the silo's local model with the global model from the server.
+
+        Args:
+            global_model (torch.nn.Module): The global model received from the server.
         """
         self.model = copy.deepcopy(global_model)
         self.model = self.model.to(self.device)
 
     def get_user_histogram(self, is_secure=True):
         """
-        Get the histogram of user's data.
+        Returns the user histogram for this silo, potentially with differential privacy applied.
+
+        The type of DP applied depends on `self.histogram_mode`.
+
+        Args:
+            is_secure (bool, optional): If True, applies DP mechanism specified by `self.histogram_mode`.
+                                       If False, returns the raw histogram. Defaults to True.
+                                       (Note: Original param `is_secure` renamed for clarity).
+        Returns:
+            list[int]: The user histogram (list of sample counts per user in this silo).
+                       This histogram may be noisy if DP is applied.
+        
+        Raises:
+            NameError: If `F` is used in `sf_dp` mode but not defined (should be `self.histogram_F`).
         """
-        if is_secure != None:
+        if is_secure and self.histogram_mode:
+            hist_len = len(self.user_histogram)
+            if hist_len == 0: return [] # Return empty if original is empty
+
             if self.histogram_mode == "dp":
                 return histogram_dp(self.user_histogram, self.sigma)
             elif self.histogram_mode == "sf_dp":
-                # TODO: Decide whether to use Mean_StructureFirst or Median_StructureFirst, and determine F if Mean_StructureFirst is used.
-                # For now, defaulting to Mean_StructureFirst with a placeholder F.
-                # Consider making F configurable or determined dynamically.
-                # Also, the k parameter (int(len(self.user_histogram)/10)) might need adjustment.
-                return Mean_StructureFirst(self.user_histogram, self.histogram_epsilon, int(len(self.user_histogram)/10), 100.0)
+                self.histogram_k = max(1, int(hist_len / self.histogram_k_div)) if hist_len > 0 else 0
+                if self.histogram_k == 0 and hist_len > 0: self.histogram_k = 1 # Ensure k is at least 1 for non-empty hist
+                if self.histogram_k == 0 and hist_len == 0: return []
+                return Mean_StructureFirst(np.array(self.user_histogram), self.histogram_epsilon, self.histogram_k, self.histogram_F)
             elif self.histogram_mode == "nf_dp":
-                # TODO: Decide whether to use Mean_NoiseFirst or Median_NoiseFirst.
-                # Defaulting to Mean_NoiseFirst for now.
-                noise_histogram, self.histogram_k = Mean_NoiseFirst(self.user_histogram, self.histogram_epsilon)
-                return noise_histogram
+                noise_histogram, self.histogram_k = Mean_NoiseFirst(np.array(self.user_histogram), self.histogram_epsilon)
+                return noise_histogram.tolist()
             else:
                 return self.user_histogram
         else:
             return self.user_histogram
 
-    def receive_user_histogram(self, sumed_user_histogram):
+    def receive_user_histogram(self, global_summed_user_histogram):
         """
-        Get the weight of the user.
-        """
-        for i in range(len(sumed_user_histogram)):
-            self.user_weight_list[i] = self.user_histogram[i] / (sumed_user_histogram[i] + 1e-8)
+        Receives the globally summed user histogram and calculates local user weights.
 
+        The weight for a user `i` in this silo is calculated as:
+        `local_user_i_samples / (global_sum_for_user_i_samples + epsilon_smooth)`.
+        These weights are stored in `self.user_weight_list`.
+
+        Args:
+            global_summed_user_histogram (list[int]): A list where each element is the total
+                                                      sample count for that user ID across ALL silos.
+        Returns:
+            list[float]: The calculated list of user weights for users in this silo.
+        """
+        if len(global_summed_user_histogram) != len(self.user_histogram):
+            logger.error(f"Silo {self.id}: Mismatch in length between global histogram ({len(global_summed_user_histogram)}) and local user_histogram ({len(self.user_histogram)}). Cannot compute weights.")
+            # Fallback: keep weights as 1s or handle error appropriately
+            self.user_weight_list = [1.0 for _ in range(len(self.user_histogram))]
+            return self.user_weight_list
+
+        for i in range(len(global_summed_user_histogram)):
+            self.user_weight_list[i] = self.user_histogram[i] / (global_summed_user_histogram[i] + 1e-8)
         return self.user_weight_list
 
     def local_silos_sgd(self, global_model, current_iter):
         """
-        silo local stochastic gradient descent.
+        Performs local Stochastic Gradient Descent (SGD) training for the silo.
+
+        The behavior depends on `self.train_mode`:
+        - 'cldp': Client-Level Differential Privacy. Uses Opacus PrivacyEngine to make
+                  the model and optimizer private. Epsilon is tracked via PrivacyEngine.
+        - 'uldp': User-Level Differential Privacy. Iterates through users in the silo,
+                  trains a model for each user's data, clips and aggregates their updates
+                  with added noise. Epsilon is calculated based on the number of active users
+                  and noise level.
+        - 'ndp' (or other): Non-private training. Standard SGD on the silo's data.
+
+        Args:
+            global_model (torch.nn.Module): The current global model received from the server,
+                                            used as the starting point for local training.
+            current_iter (int): The current federated learning iteration number (for logging).
+
         Returns:
-            avg_epoch_loss: Average loss of all silos
-            avg_epoch_acc: Average accuracy of all silos
+            tuple[float, float]:
+                - avg_loss: The average training loss over local epochs for this silo.
+                            For 'uldp', it's the average loss across participating users.
+                - avg_acc: The average training accuracy over local epochs for this silo.
+                           For 'uldp', it's the average accuracy across participating users.
         """
         original_model = copy.deepcopy(global_model)
         original_model = original_model.to(self.device)
-        total_loss = 0
-        total_acc = 0
-        avg_loss = 0
-        avg_acc = 0
+        total_loss = 0.0
+        total_acc = 0.0
+        avg_loss = 0.0
+        avg_acc = 0.0
+
+        if self.train_loader is None and (self.train_mode == 'cldp' or self.train_mode == 'ndp'):
+             logger.warning(f"Silo {self.id}: No data to train (train_loader is None). Skipping local training.")
+             return 0.0, 0.0
 
         if self.train_mode == 'cldp':
             self.model = copy.deepcopy(global_model)
@@ -145,32 +238,23 @@ class Silo:
 
         elif self.train_mode == 'uldp':
             users = self.silo_data_indices
-            user_model_list = [copy.deepcopy(self.model)
-                               for _ in range(len(users))]
+            user_model_list = [copy.deepcopy(self.model) for _ in range(len(users))]
 
             for i in range(len(user_model_list)):
                 user_model_list[i] = user_model_list[i].to(self.device)
             valid_user_count = 0
 
-            # Calculate privacy parameters for ULDP
-            # For ULDP, each user's update consumes a portion of the privacy budget
-            user_count = len(users)
-            # Calculate noise scale based on actual noise added during clipping
-            # Using the analytic Gaussian mechanism formula for (ε,δ)-DP
-            # ε = sqrt(2*log(1.25/δ)) * (sensitivity / σ)
-            c = self.max_grad_norm  # sensitivity (clipping norm)
-            actual_epsilon_per_user = 0
-            if user_count > 0 and self.sigma > 0:
-                # Calculate actual ε spent per user based on the noise scale (sigma)
-                actual_epsilon_per_user = (
-                    c / self.sigma) * math.sqrt(2 * math.log(1.25 / self.delta))
+            c = self.max_grad_norm
+            actual_epsilon_per_user = 0.0
 
-            epsilon_spent_this_round = 0
+            if self.sigma > 0 and self.delta > 0:
+                actual_epsilon_per_user = (c / self.sigma) * math.sqrt(2 * math.log(1.25 / self.delta))
 
-            for user_id, user_data_indices in users.items():
-                user_data = self.dataset.get_dataset(user_data_indices)
+            epsilon_spent_this_round_for_silo = 0.0
 
-                # Skip users with empty datasets
+            for user_id, user_data_indices_list in users.items():
+                user_data = self.dataset.get_dataset(user_data_indices_list)
+
                 if len(user_data) == 0:
                     logger.info(
                         f"Iter {current_iter} | Silo {self.id} | User {user_id} | Skipping - Empty dataset")
@@ -194,21 +278,18 @@ class Silo:
                 total_acc += user_avg_acc
                 valid_user_count += 1
 
-                # Add to the spent epsilon for each active user
-                epsilon_spent_this_round += actual_epsilon_per_user
+                # This is a simplified sum; proper composition (e.g. RDP) is needed for rigorous ULDP.
+                epsilon_spent_this_round_for_silo += actual_epsilon_per_user
 
-            # Avoid division by zero if no valid users
             if valid_user_count > 0:
                 avg_loss = total_loss / valid_user_count
                 avg_acc = total_acc / valid_user_count
             else:
                 logger.warning(
                     f"Iter {current_iter} | Silo {self.id} has no valid users with data")
-                avg_loss = 0
-                avg_acc = 0
+                avg_loss = 0.0
+                avg_acc = 0.0
 
-            
-            # Update the model with the weighted average of the user's models
             with torch.no_grad():
                 for key in self.model.state_dict():
                     self.model.state_dict()[key].copy_(
@@ -251,16 +332,27 @@ class Silo:
 
         return avg_loss, avg_acc
 
-    def train(self, model, train_loader, optimizer=None, current_iter=0):  # Add current_iter with default
+    def train(self, model, train_loader, optimizer=None, current_iter=0):
         """
-        Local training with noise addition
+        Performs the actual local training loop for a given model and data loader.
+
+        This method is called by `local_silos_sgd` for each epoch of local training.
+        It handles the forward pass, loss calculation, backward pass, and optimizer step.
+
         Args:
-            model: Model
-            train_loader: Training data loader
-            optimizer: Optional custom optimizer
+            model (torch.nn.Module): The model to be trained.
+            train_loader (torch.utils.data.DataLoader): DataLoader for the training data.
+            optimizer (torch.optim.Optimizer, optional): The optimizer to use. If None,
+                                                         `self.optimizer` is used (if it's compatible
+                                                         with the passed model). Defaults to None.
+            current_iter (int, optional): The current federated learning iteration,
+                                          used for logging purposes within the epoch loop (currently commented out).
+                                          Defaults to 0.
+
         Returns:
-            train_loss: Average training loss
-            train_acc: Average training accuracy
+            tuple[float, float]:
+                - avg_loss: The average loss over all epochs.
+                - avg_acc: The average accuracy over all epochs.
         """
         model.train()
         total_loss = 0.0
@@ -274,6 +366,7 @@ class Silo:
             epoch_correct = 0.0
             epoch_samples = 0.0
 
+            num_batches = 0
             for id, (data, target) in enumerate(train_loader):
                 # Empty the gradient
                 optimizer.zero_grad()
@@ -294,15 +387,22 @@ class Silo:
 
                 # Accumulate the loss
                 epoch_loss += loss.item()
+                num_batches +=1
 
                 # Calculate the accuracy
                 pred = output.argmax(dim=1, keepdim=True)
                 epoch_correct += pred.eq(target.view_as(pred)).sum().item()
                 epoch_samples += target.size(0)
 
-            # Calculate the average loss and accuracy
-            epoch_avg_loss = epoch_loss / len(train_loader)
-            epoch_avg_acc = epoch_correct / epoch_samples * 100.0
+            # Calculate the average loss and accuracy for the epoch
+            if num_batches > 0 and epoch_samples > 0:
+                epoch_avg_loss = epoch_loss / num_batches
+                epoch_avg_acc = epoch_correct / epoch_samples * 100.0
+            else:
+                epoch_avg_loss = 0.0
+                epoch_avg_acc = 0.0
+                logger.warning(f"Silo {self.id}, Iter {current_iter}, Epoch {epoch}: No batches processed in train_loader.")
+
 
             # logger.info(
             #     f"Iter {current_iter} | Silo {self.id} | Epoch {epoch} | Loss = {epoch_avg_loss:.4f}, Accuracy = {epoch_avg_acc:.2f}%")
@@ -310,7 +410,12 @@ class Silo:
             total_loss += epoch_avg_loss
             total_acc += epoch_avg_acc
 
-        avg_loss = total_loss / self.epoch_num
-        avg_acc = total_acc / self.epoch_num
+        if self.epoch_num > 0:
+            avg_loss_final = total_loss / self.epoch_num
+            avg_acc_final = total_acc / self.epoch_num
+        else: # No epochs
+            avg_loss_final = 0.0
+            avg_acc_final = 0.0
 
-        return avg_loss, avg_acc
+
+        return avg_loss_final, avg_acc_final

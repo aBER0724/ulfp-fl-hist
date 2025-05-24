@@ -116,8 +116,20 @@ def get_silo_user_counts(seed: int, n_silos: int, n_users: int, config: dict) ->
 def calculate_epsilon_silo_round_approx(n_j: int, sigma: float, delta: float) -> float:
     """
     计算单个 Silo 单轮的近似 (epsilon, delta)-DP 值。
-    主要用于找到哪个 Silo 的 epsilon 最大 (对应 noise multiplier 最小)。
-    公式: epsilon = sqrt(N_j) * sqrt(2 * log(1.25 / delta)) / (sigma * 1000)
+
+    此函数主要用于在多 Silo 场景下，快速估算哪个 Silo 在当前轮次贡献了最大的隐私预算消耗（即具有最高的 epsilon），
+    这通常对应于具有最小等效噪声乘数 (noise multiplier) 的 Silo。
+    近似公式为: epsilon ≈ sqrt(N_j) * sqrt(2 * log(1.25 / delta)) / (sigma * 100)
+    注意: 此处 sigma 是原始噪声标准差，分母中的 100 是一个缩放因子，用于匹配特定场景下的噪声乘数计算。
+
+    Args:
+        n_j (int): Silo j 中的用户数量。
+        sigma (float): 应用于每个用户的原始高斯噪声的标准差。
+        delta (float): 目标差分隐私参数 delta。
+
+    Returns:
+        float: 计算得到的近似 epsilon 值。如果输入无效（如 delta 不在 (0,1) 范围或 n_j=0 且 sigma=0），
+               可能返回 0.0, float('inf'), 或 float('nan')。
     """
     if n_j == 0:
         return 0.0
@@ -139,7 +151,18 @@ def calculate_epsilon_silo_round_approx(n_j: int, sigma: float, delta: float) ->
 
 def correct_epsilon_in_checkpoint(original_pth_path: str, corrected_pth_path: str):
     """
-    加载 checkpoint，使用 RDP 会计方法重新计算 DP epsilon，更新数据并保存。
+    加载指定的 PyTorch checkpoint 文件，使用 RDP 会计方法重新计算累积的 DP epsilon，
+    更新 checkpoint 内的 epsilon 历史和最终 epsilon 值，并将修正后的数据保存到新的文件。
+
+    Args:
+        original_pth_path (str): 原始 .pth checkpoint 文件的路径。
+        corrected_pth_path (str): 保存修正后 .pth checkpoint 文件的路径。
+                                  如果目录不存在，会尝试创建。
+
+    Side Effects:
+        - 读取 `original_pth_path` 文件。
+        - 创建或覆盖 `corrected_pth_path` 文件。
+        - 在控制台打印操作日志和错误信息。
     """
     print(f"开始处理文件: {original_pth_path}")
     if not os.path.exists(original_pth_path):

@@ -14,15 +14,32 @@ from FL.utilis.hist_noise import histogram_dp, Mean_NoiseFirst, Median_NoiseFirs
 
 def plot_comparison_results(original_hist, hist_variants_data, output_dir, plot_file_basename, main_plot_title):
     """
-    Generates and saves comparison plots for a set of histogram variants.
+    Generates and saves a series of comparison plots for different histogram variants
+    against an original histogram.
+
+    This function creates three types of plots:
+    1.  An overall side-by-side bar chart comparing the original histogram with all variants.
+    2.  Detailed subplots showing:
+        a. Original vs. each non-Gaussian variant.
+        b. Original vs. a Gaussian DP variant (if provided).
+        c. A combined bar chart of differences (variant - original) for all variants.
+    3.  Bar charts for Mean Absolute Error (MAE) and Mean Squared Error (MSE) for each variant
+        compared to the original.
 
     Args:
-        original_hist: The original histogram data.
-        hist_variants_data: A list of tuples, where each tuple is 
-                            (label, histogram_array, color_str).
-        output_dir: Directory to save the plots.
-        plot_file_basename: Base name for the output plot files (e.g., "nf_eps_0.5").
-        main_plot_title: Title for the set of comparison plots.
+        original_hist (np.ndarray): A 1D NumPy array representing the original histogram counts.
+        hist_variants_data (list[tuple]): A list of tuples, where each tuple contains:
+            - label (str): The label/name for the histogram variant (e.g., "NF Mean ε=0.5 k=10").
+            - histogram_array (np.ndarray): The histogram data for the variant.
+            - color_str (str): A string representing the color for this variant's plots.
+        output_dir (str): The directory path where the generated plot images will be saved.
+                          The directory will be created if it doesn't exist.
+        plot_file_basename (str): A base name used for the output plot files.
+                                  For example, if "nf_eps_0.5", files like
+                                  "nf_eps_0.5_overall.png", "nf_eps_0.5_detailed.png",
+                                  and "nf_eps_0.5_error_metrics.png" will be generated.
+        main_plot_title (str): A general title prefix used for the set of comparison plots
+                               (e.g., "NoiseFirstDP Epsilon Variation").
     """
     os.makedirs(output_dir, exist_ok=True)
     indices = np.arange(len(original_hist))

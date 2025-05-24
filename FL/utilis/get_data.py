@@ -12,7 +12,31 @@ logging.basicConfig(level=logging.INFO, format='[%(asctime)s] - %(message)s', da
 logger = logging.getLogger(__name__)
 
 
-def get_data(dataset_name, seed=1):
+def get_data(dataset_name: str, seed: int = 1) -> tuple[torch.utils.data.Dataset, torch.utils.data.Dataset, np.ndarray]:
+    """
+    Loads and preprocesses the specified dataset (MNIST or Credit Card Fraud).
+
+    For MNIST, it downloads the dataset, applies transformations (ToTensor, Normalize).
+    For Credit Card, it loads from a local CSV, performs train/test split, scales features,
+    and applies downsampling to the majority class in the training set.
+
+    Args:
+        dataset_name (str): The name of the dataset to load.
+                            Supported values: 'mnist', 'creditcard'.
+        seed (int, optional): Random seed used for reproducibility, particularly for
+                              train/test split and downsampling in the credit card dataset.
+                              Defaults to 1.
+
+    Returns:
+        tuple[torch.utils.data.Dataset, torch.utils.data.Dataset, np.ndarray]:
+            - dataset_train: The training dataset (torch.utils.data.Dataset).
+            - dataset_test: The test dataset (torch.utils.data.Dataset).
+            - labels: A NumPy array of labels from the training dataset.
+
+    Raises:
+        FileNotFoundError: If the credit card dataset CSV is not found at the expected path.
+        ValueError: If an unsupported `dataset_name` is provided.
+    """
     if dataset_name == 'mnist':
         # transforms.Compose(): Combined multiple operations.
         # transforms.ToTensor(): Convert images to tensor type.

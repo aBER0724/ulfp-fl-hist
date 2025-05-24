@@ -193,7 +193,15 @@ class Dataset:
 
     def get_silos_indices(self, silo_id):
         """
-        Get the indices of silos.
+        Get the data indices for all users within a specific silo.
+
+        Params:
+            silo_id: The ID of the silo.
+
+        Returns:
+            A dictionary where keys are user_ids and values are lists of data indices
+            belonging to that user within the specified silo.
+            Example: {user_0: [idx1, idx2, ...], user_1: [idx_a, idx_b, ...]}
         """
         return self.silos_indices_of_data[silo_id]
 
