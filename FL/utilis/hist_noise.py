@@ -197,13 +197,13 @@ def reconstruct_boundaries(ptr_table, n, k):
 
     # 边界应该是排序的，并且包含0和n
     # ptr_table 返回的是上一个区间的结束点（即当前区间的起始点，但不包括0）
-    # 例如，如果k=1, ptr[n][1] = 0。boundaries = [0]
-    # 如果k=2, ptr[n][2] = b1, ptr[b1][1] = 0。 boundaries = [b1, 0]
+    # 例如，如果k=1, ptr[n][1] = 0 boundaries = [0]
+    # 如果k=2, ptr[n][2] = b1, ptr[b1][1] = 0  boundaries = [b1, 0]
     
     final_boundaries = sorted(list(set(boundaries))) # 去重并排序
     
     # 确保边界从0开始，到n结束，用于定义区间
-    # reconstruct_boundaries 的目的是返回分割点。
+    # reconstruct_boundaries 的目的是返回分割点 
     # 如果 boundaries 是 [s_k, s_{k-1}, ..., s_1] 其中 s_1=0
     # 那么区间是 [s_1, s_2-1], [s_2, s_3-1], ..., [s_k, n-1]
     # 或者更常见的定义是返回区间的结束点 (exclusive)
@@ -223,7 +223,7 @@ def reconstruct_boundaries(ptr_table, n, k):
     # 论文中的边界通常指区间的结束点（不包含）或者起始点（包含）
     # 如果 ptr_table[current_idx][current_k] 存储的是最后一个区间的起始索引 l
     # 那么这个区间是 [l, current_idx-1]
-    # boundaries 列表收集了这些 l。
+    # boundaries 列表收集了这些 l 
     # 排序后，例如 [0, l2, l3] for k=3 bins, where bins are [0,l2-1], [l2,l3-1], [l3,n-1]
     # 我们需要的是分割点：l2, l3, n
     
@@ -272,7 +272,7 @@ def Mean_NoiseFirst(user_histogram, epsilon):
         ValueError: If epsilon is not positive.
     """
     if epsilon <= 0:
-        raise ValueError("Epsilon 必须为正。")
+        raise ValueError("Epsilon 必须为正 ")
 
     n = len(user_histogram)
     if n == 0:
@@ -301,7 +301,7 @@ def Mean_NoiseFirst(user_histogram, epsilon):
                 best_k = k_candidate
     
     if best_k == -1: # 如果没有找到有效的k (例如所有SSE都是inf)
-        print("警告: 无法自动找到最优k。回退到 k=1。")
+        print("警告: 无法自动找到最优k 回退到 k=1 ")
         best_k = 1 if n > 0 else 0
 
 
@@ -353,7 +353,7 @@ def Median_NoiseFirst(user_histogram, epsilon):
         ValueError: If epsilon is not positive.
     """
     if epsilon <= 0:
-        raise ValueError("Epsilon 必须为正。")
+        raise ValueError("Epsilon 必须为正 ")
 
     n = len(user_histogram)
     if n == 0:
@@ -382,7 +382,7 @@ def Median_NoiseFirst(user_histogram, epsilon):
                 best_k = k_candidate
     
     if best_k == -1:
-        print("警告: 无法自动找到最优k。回退到 k=1。")
+        print("警告: 无法自动找到最优k 回退到 k=1 ")
         best_k = 1 if n > 0 else 0
 
     boundaries = reconstruct_boundaries(ptr_table, n, best_k)
@@ -444,7 +444,7 @@ def _perturb_boundaries_exponential_mechanism(
         ValueError: If k is negative.
     """
     if k < 0: # k 应该是非负的
-        raise ValueError("区间数量 k 不能为负。")
+        raise ValueError("区间数量 k 不能为负 ")
     if k == 0:
         return []
     
@@ -452,7 +452,7 @@ def _perturb_boundaries_exponential_mechanism(
                                      # perturbed_end_boundaries[i] 是第 (i+1) 个区间的结束点(exclusive)
                                      # 即 r_{i+1}
 
-    # 对于 k=1 的情况，只有一个区间，其结束点是 n。没有内部边界需要选择。
+    # 对于 k=1 的情况，只有一个区间，其结束点是 n 没有内部边界需要选择 
     if k == 1:
         if n > 0:
             perturbed_end_boundaries[0] = n
@@ -469,7 +469,7 @@ def _perturb_boundaries_exponential_mechanism(
     # j_boundary_idx 对应论文中的 j，表示正在确定第 j 个区间的右边界 r_j
     for j_boundary_idx in range(k - 1, 0, -1):
         # 我们正在确定 perturbed_end_boundaries[j_boundary_idx-1]，即 r_j
-        # q_val 是 r_j 的候选值。
+        # q_val 是 r_j 的候选值 
         # 前 j_boundary_idx 个区间覆盖 [0...q_val-1]
         # 第 (j_boundary_idx+1)-th 个区间是 [q_val...current_fixed_end_idx-1]
         
@@ -480,8 +480,8 @@ def _perturb_boundaries_exponential_mechanism(
             # 这种情况理论上不应该频繁发生，除非k非常接近n或数据分布极端
             # 如果发生，意味着无法为当前j_boundary_idx找到有效的分割点q_val
             # 例如，如果 current_fixed_end_idx = j_boundary_idx，则 max_q_val < min_q_val
-            print(f"警告 (_perturb_boundaries): 无法为边界索引 {j_boundary_idx-1} (r_{j_boundary_idx}) 在 ({min_q_val}, {max_q_val}] 找到有效分割点。"
-                  f"r_{{j+1}}={current_fixed_end_idx}. 使用回退策略。")
+            print(f"警告 (_perturb_boundaries): 无法为边界索引 {j_boundary_idx-1} (r_{j_boundary_idx}) 在 ({min_q_val}, {max_q_val}] 找到有效分割点 "
+                  f"r_{{j+1}}={current_fixed_end_idx}. 使用回退策略 ")
             # 回退策略：将此边界设置为紧邻下一个边界或一个合理的值
             # chosen_split_point = max_q_val if max_q_val >= min_q_val else min_q_val
             # 更安全的做法可能是让这个区间为空，或者与前一个合并，但这会改变k
@@ -516,10 +516,10 @@ def _perturb_boundaries_exponential_mechanism(
         
         # 指数机制的概率计算
         # 尺度参数: (2 * (迭代次数 k-1) * 敏感度) / epsilon1
-        # 注意：这里的 (k-1) 是指总共进行 k-1 次边界选择。
-        # 论文中分母的 (k-1) 是指总的边界扰动次数。
+        # 注意：这里的 (k-1) 是指总共进行 k-1 次边界选择 
+        # 论文中分母的 (k-1) 是指总的边界扰动次数 
         # 如果每次迭代都用 epsilon1 / (k-1) 的预算，那么单次迭代的尺度是 (2 * sensitivity) / (epsilon1 / (k-1))
-        # 这里 epsilon1 是已经分配给 *所有* 结构扰动的总预算。
+        # 这里 epsilon1 是已经分配给 *所有* 结构扰动的总预算 
         # 论文 Algorithm 3, line 7: exp{ -eps1 * E_SSE / (2(k-1)(2F+1)) }
         #  => 尺度 = (2 * (k-1) * (2F+1)) / eps1
         # 论文 Algorithm 6, line 7: exp{ -eps1 * E_SAE / (2(k-1)) }
@@ -548,16 +548,16 @@ def _perturb_boundaries_exponential_mechanism(
         if sum_probs > 0:
             probabilities /= sum_probs
         else: 
-            # print(f"警告 (_perturb_boundaries): 指数机制中所有概率为零，使用均匀分布。j_boundary_idx={j_boundary_idx}")
+            # print(f"警告 (_perturb_boundaries): 指数机制中所有概率为零，使用均匀分布 j_boundary_idx={j_boundary_idx}")
             probabilities = np.ones_like(costs) / len(costs) if len(costs) > 0 else []
 
         if len(candidate_split_points_q) > 0 and len(probabilities) == len(candidate_split_points_q) and np.sum(probabilities) > 0:
             chosen_split_point = np.random.choice(candidate_split_points_q, p=probabilities)
         elif len(candidate_split_points_q) > 0: 
-            # print(f"警告 (_perturb_boundaries): 概率计算故障或候选点不足，从候选点中均匀随机选择。j_boundary_idx={j_boundary_idx}")
+            # print(f"警告 (_perturb_boundaries): 概率计算故障或候选点不足，从候选点中均匀随机选择 j_boundary_idx={j_boundary_idx}")
             chosen_split_point = np.random.choice(candidate_split_points_q)
         else: 
-            # print(f"警告 (_perturb_boundaries): 没有候选分割点。j_boundary_idx={j_boundary_idx}")
+            # print(f"警告 (_perturb_boundaries): 没有候选分割点 j_boundary_idx={j_boundary_idx}")
             # 这是一个严重错误，意味着 min_q_val > max_q_val 之前的检查可能不够
             chosen_split_point = current_fixed_end_idx - 1 # 紧急回退
             if chosen_split_point < j_boundary_idx : chosen_split_point = j_boundary_idx
@@ -594,9 +594,9 @@ def Mean_StructureFirst(user_histogram, epsilon, k, F):
         ValueError: If epsilon is not positive or k is negative.
     """
     if epsilon <= 0:
-        raise ValueError("Epsilon 必须为正。")
+        raise ValueError("Epsilon 必须为正 ")
     if k < 0: # 允许 k=0 (返回空)
-        raise ValueError("区间数量 k 不能为负。")
+        raise ValueError("区间数量 k 不能为负 ")
     n = len(user_histogram)
     
     if k == 0:
@@ -605,7 +605,7 @@ def Mean_StructureFirst(user_histogram, epsilon, k, F):
         return np.array([]) if k==0 else np.array([0]*0) # 或者根据约定返回
 
     if k > n :
-        # print(f"警告 (Mean_StructureFirst): k ({k}) 大于数据点数量 ({n})。将 k 设为 {n}。")
+        # print(f"警告 (Mean_StructureFirst): k ({k}) 大于数据点数量 ({n}) 将 k 设为 {n} ")
         k = n
 
     epsilon1 = epsilon / 2.0
@@ -681,9 +681,9 @@ def Median_StructureFirst(user_histogram, epsilon, k):
         ValueError: If epsilon is not positive or k is negative.
     """
     if epsilon <= 0:
-        raise ValueError("Epsilon 必须为正。")
+        raise ValueError("Epsilon 必须为正 ")
     if k < 0:
-        raise ValueError("区间数量 k 不能为负。")
+        raise ValueError("区间数量 k 不能为负 ")
     n = len(user_histogram)
 
     if k == 0:
@@ -693,7 +693,7 @@ def Median_StructureFirst(user_histogram, epsilon, k):
 
 
     if k > n :
-        # print(f"警告 (Median_StructureFirst): k ({k}) 大于数据点数量 ({n})。将 k 设为 {n}。")
+        # print(f"警告 (Median_StructureFirst): k ({k}) 大于数据点数量 ({n}) 将 k 设为 {n} ")
         k = n
 
     epsilon1 = epsilon / 2.0

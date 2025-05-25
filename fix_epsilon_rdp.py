@@ -14,8 +14,8 @@ import copy # Potentially needed if config modification required for dataset ini
 try:
     from dp_accounting import dp_event, privacy_accountant
 except ImportError:
-    print("错误: 未找到 dp-accounting 库。")
-    print("请使用 pip install dp-accounting 安装。")
+    print("错误: 未找到 dp-accounting 库 ")
+    print("请使用 pip install dp-accounting 安装 ")
     exit(1)
 
 # =============================================================================
@@ -24,23 +24,23 @@ except ImportError:
 # =============================================================================
 def get_silo_user_counts(seed: int, n_silos: int, n_users: int, config: dict) -> list[int]:
     """
-    根据 seed 和 config 重现 Silo 分配，并返回每个 Silo 的用户数。
+    根据 seed 和 config 重现 Silo 分配，并返回每个 Silo 的用户数 
 
     Args:
-        seed: 原始运行使用的随机种子。
-        n_silos: Silo 的总数。
-        n_users: 用户总数。
+        seed: 原始运行使用的随机种子 
+        n_silos: Silo 的总数 
+        n_users: 用户总数 
         config: 从 checkpoint 加载的 training_config 字典，
-                包含 Dataset 类初始化所需的参数。
+                包含 Dataset 类初始化所需的参数 
 
     Returns:
-        一个长度为 n_silos 的整数列表，第 j 个元素是分配给 Silo j 的用户数 N_j。
+        一个长度为 n_silos 的整数列表，第 j 个元素是分配给 Silo j 的用户数 N_j 
 
     Raises:
-        ImportError: 如果无法导入所需的 Dataset 类。
-        KeyError: 如果 config 字典中缺少 Dataset 初始化所需的关键参数。
-        NotImplementedError: 如果用户未提供具体实现。
-        Exception: 其他在 Dataset 初始化或处理中发生的异常。
+        ImportError: 如果无法导入所需的 Dataset 类 
+        KeyError: 如果 config 字典中缺少 Dataset 初始化所需的关键参数 
+        NotImplementedError: 如果用户未提供具体实现 
+        Exception: 其他在 Dataset 初始化或处理中发生的异常 
     """
     print("尝试调用用户实现的 get_silo_user_counts 函数...")
     # ----------------------------------------------------------------------
@@ -59,7 +59,7 @@ def get_silo_user_counts(seed: int, n_silos: int, n_users: int, config: dict) ->
             silo_alpha = config.get('silo_alpha', 2.0)
             max_samples = config.get('max_samples', None)
         except KeyError as e:
-            print(f"错误: training_config 中缺少关键参数 '{e}' 用于 Dataset 初始化。")
+            print(f"错误: training_config 中缺少关键参数 '{e}' 用于 Dataset 初始化 ")
             raise ValueError(f"缺少参数: {e}") from e
 
         print(f"  使用参数初始化 Dataset: seed={seed}, n_silos={n_silos}, n_users={n_users}, "
@@ -77,7 +77,7 @@ def get_silo_user_counts(seed: int, n_silos: int, n_users: int, config: dict) ->
             mode=mode,
             max_samples=max_samples
         )
-        print("  Dataset 对象创建成功。")
+        print("  Dataset 对象创建成功 ")
 
         # 计算每个 Silo 的用户数
         silo_user_counts = []
@@ -91,18 +91,18 @@ def get_silo_user_counts(seed: int, n_silos: int, n_users: int, config: dict) ->
                  silo_user_counts.append(count)
             else:
                  # 如果结构不同，你需要修改这里的逻辑
-                 print(f"错误：无法从 Dataset 对象中确定 Silo {silo_id} 的用户数。")
-                 print("请检查 Dataset 类实现或修改此函数。")
-                 raise AttributeError("无法访问或解析 silos_indices_of_data 属性。")
+                 print(f"错误：无法从 Dataset 对象中确定 Silo {silo_id} 的用户数 ")
+                 print("请检查 Dataset 类实现或修改此函数 ")
+                 raise AttributeError("无法访问或解析 silos_indices_of_data 属性 ")
 
         print(f"  计算得到的 Silo 用户数: {silo_user_counts}")
         if len(silo_user_counts) != n_silos:
-             raise ValueError("返回的用户数列表长度与 n_silos 不匹配。")
+             raise ValueError("返回的用户数列表长度与 n_silos 不匹配 ")
         return silo_user_counts
 
     except ImportError:
-        print("错误: 无法从 'FL.utilis.dataset' 导入 'Dataset' 类。")
-        print("请确保该文件存在，并且脚本是从正确的项目根目录运行。")
+        print("错误: 无法从 'FL.utilis.dataset' 导入 'Dataset' 类 ")
+        print("请确保该文件存在，并且脚本是从正确的项目根目录运行 ")
         raise
     except Exception as e:
         print(f"在 get_silo_user_counts 函数中发生错误: {e}")
@@ -115,21 +115,21 @@ def get_silo_user_counts(seed: int, n_silos: int, n_users: int, config: dict) ->
 
 def calculate_epsilon_silo_round_approx(n_j: int, sigma: float, delta: float) -> float:
     """
-    计算单个 Silo 单轮的近似 (epsilon, delta)-DP 值。
+    计算单个 Silo 单轮的近似 (epsilon, delta)-DP 值 
 
     此函数主要用于在多 Silo 场景下，快速估算哪个 Silo 在当前轮次贡献了最大的隐私预算消耗（即具有最高的 epsilon），
-    这通常对应于具有最小等效噪声乘数 (noise multiplier) 的 Silo。
+    这通常对应于具有最小等效噪声乘数 (noise multiplier) 的 Silo 
     近似公式为: epsilon ≈ sqrt(N_j) * sqrt(2 * log(1.25 / delta)) / (sigma * 100)
-    注意: 此处 sigma 是原始噪声标准差，分母中的 100 是一个缩放因子，用于匹配特定场景下的噪声乘数计算。
+    注意: 此处 sigma 是原始噪声标准差，分母中的 100 是一个缩放因子，用于匹配特定场景下的噪声乘数计算 
 
     Args:
-        n_j (int): Silo j 中的用户数量。
-        sigma (float): 应用于每个用户的原始高斯噪声的标准差。
-        delta (float): 目标差分隐私参数 delta。
+        n_j (int): Silo j 中的用户数量 
+        sigma (float): 应用于每个用户的原始高斯噪声的标准差 
+        delta (float): 目标差分隐私参数 delta 
 
     Returns:
-        float: 计算得到的近似 epsilon 值。如果输入无效（如 delta 不在 (0,1) 范围或 n_j=0 且 sigma=0），
-               可能返回 0.0, float('inf'), 或 float('nan')。
+        float: 计算得到的近似 epsilon 值 如果输入无效（如 delta 不在 (0,1) 范围或 n_j=0 且 sigma=0），
+               可能返回 0.0, float('inf'), 或 float('nan') 
     """
     if n_j == 0:
         return 0.0
@@ -152,17 +152,17 @@ def calculate_epsilon_silo_round_approx(n_j: int, sigma: float, delta: float) ->
 def correct_epsilon_in_checkpoint(original_pth_path: str, corrected_pth_path: str):
     """
     加载指定的 PyTorch checkpoint 文件，使用 RDP 会计方法重新计算累积的 DP epsilon，
-    更新 checkpoint 内的 epsilon 历史和最终 epsilon 值，并将修正后的数据保存到新的文件。
+    更新 checkpoint 内的 epsilon 历史和最终 epsilon 值，并将修正后的数据保存到新的文件 
 
     Args:
-        original_pth_path (str): 原始 .pth checkpoint 文件的路径。
-        corrected_pth_path (str): 保存修正后 .pth checkpoint 文件的路径。
-                                  如果目录不存在，会尝试创建。
+        original_pth_path (str): 原始 .pth checkpoint 文件的路径 
+        corrected_pth_path (str): 保存修正后 .pth checkpoint 文件的路径 
+                                  如果目录不存在，会尝试创建 
 
     Side Effects:
-        - 读取 `original_pth_path` 文件。
-        - 创建或覆盖 `corrected_pth_path` 文件。
-        - 在控制台打印操作日志和错误信息。
+        - 读取 `original_pth_path` 文件 
+        - 创建或覆盖 `corrected_pth_path` 文件 
+        - 在控制台打印操作日志和错误信息 
     """
     print(f"开始处理文件: {original_pth_path}")
     if not os.path.exists(original_pth_path):
@@ -172,14 +172,14 @@ def correct_epsilon_in_checkpoint(original_pth_path: str, corrected_pth_path: st
     # --- 加载 Checkpoint ---
     try:
         checkpoint_data = torch.load(original_pth_path, map_location=torch.device('cpu'))
-        print("Checkpoint 文件加载成功。")
+        print("Checkpoint 文件加载成功 ")
     except Exception as e:
         print(f"错误: 加载 checkpoint 文件失败: {e}")
         return
 
     # --- 提取必要配置 ---
     if 'training_config' not in checkpoint_data or 'training_history' not in checkpoint_data:
-        print("错误: Checkpoint 文件缺少 'training_config' 或 'training_history'。")
+        print("错误: Checkpoint 文件缺少 'training_config' 或 'training_history' ")
         return
 
     config = checkpoint_data['training_config']
@@ -200,22 +200,22 @@ def correct_epsilon_in_checkpoint(original_pth_path: str, corrected_pth_path: st
     max_grad_norm = config['max_grad_norm'] # C, 用于上下文理解，但不直接参与 RDP 计算
 
     if 'consumed_epsilons' not in history:
-        print("错误: 'training_history' 中缺少 'consumed_epsilons'。")
+        print("错误: 'training_history' 中缺少 'consumed_epsilons' ")
         return
     num_rounds = len(history['consumed_epsilons'])
     if num_rounds == 0:
-        print("警告: 训练历史中没有轮次记录，无需修正 Epsilon。")
+        print("警告: 训练历史中没有轮次记录，无需修正 Epsilon ")
         # 仍然可以尝试保存（如果需要添加其他信息），或者直接退出
         # 这里我们选择退出
         return
-    print(f"从历史记录中找到 {num_rounds} 轮。")
+    print(f"从历史记录中找到 {num_rounds} 轮 ")
 
     # --- 重现 Silo 用户数 ---
     print("调用 get_silo_user_counts 函数...")
     try:
         silo_user_counts = get_silo_user_counts(seed, n_silos, n_users, config)
     except NotImplementedError:
-        print("错误: get_silo_user_counts 函数未实现。请填充其逻辑。")
+        print("错误: get_silo_user_counts 函数未实现 请填充其逻辑 ")
         return
     except Exception as e:
         print(f"错误: 调用 get_silo_user_counts 时出错: {e}")
@@ -307,7 +307,7 @@ def correct_epsilon_in_checkpoint(original_pth_path: str, corrected_pth_path: st
 
     # 获取最终结果
     final_accumulated_value_rdp = accumulated_correct_epsilon_history_rdp[-1] if accumulated_correct_epsilon_history_rdp else 0.0
-    print(f"计算完成。最终累积 Epsilon (RDP): {final_accumulated_value_rdp:.4f}")
+    print(f"计算完成 最终累积 Epsilon (RDP): {final_accumulated_value_rdp:.4f}")
 
     # --- 更新 Checkpoint 数据 ---
     print("正在更新 checkpoint 数据...")
@@ -322,32 +322,32 @@ def correct_epsilon_in_checkpoint(original_pth_path: str, corrected_pth_path: st
     checkpoint_data['recalculation_info']['composition_rule'] = "Composition via accountant, using min noise multiplier (max epsilon) across silos per round."
     checkpoint_data['recalculation_info']['script_name'] = os.path.basename(__file__)
 
-    print("Checkpoint 数据更新完毕。")
+    print("Checkpoint 数据更新完毕 ")
 
     # --- 保存修正后的文件 ---
     print(f"正在保存修正后的 checkpoint 到: {corrected_pth_path}")
     try:
         os.makedirs(os.path.dirname(corrected_pth_path), exist_ok=True)
         torch.save(checkpoint_data, corrected_pth_path)
-        print("修正后的 checkpoint 文件保存成功。")
+        print("修正后的 checkpoint 文件保存成功 ")
     except Exception as e:
         print(f"错误: 保存修正后的 checkpoint 文件失败: {e}")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="使用 RDP 会计方法修正 PyTorch checkpoint 文件中的 DP Epsilon。",
+        description="使用 RDP 会计方法修正 PyTorch checkpoint 文件中的 DP Epsilon ",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("original_pth_path", type=str,
-                        help="原始 .pth checkpoint 文件的路径。")
+                        help="原始 .pth checkpoint 文件的路径 ")
     parser.add_argument("corrected_pth_path", type=str,
-                        help="保存修正后 .pth checkpoint 文件的路径。")
+                        help="保存修正后 .pth checkpoint 文件的路径 ")
 
     args = parser.parse_args()
 
     # 再次检查用户函数是否存在
     if 'get_silo_user_counts' not in globals() or not callable(get_silo_user_counts):
-         print("内部错误: 函数 'get_silo_user_counts' 未定义或不可调用。")
+         print("内部错误: 函数 'get_silo_user_counts' 未定义或不可调用 ")
          exit(1)
     # 可以在这里添加对 get_silo_user_counts 实现的检查提示
     # print("注意：请确保 get_silo_user_counts 函数已根据您的项目正确实现！")

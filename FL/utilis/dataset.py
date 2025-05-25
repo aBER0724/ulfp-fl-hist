@@ -5,16 +5,16 @@ from FL.utilis.get_data import get_data
 class Dataset:
     def __init__(self, dataset_name, n_silos, n_users, user_alpha=0.5, silo_alpha=2.0, seed=1, mode='zipf', max_samples=None):
         """
-        Initialize the dataset and divide data into silos and users.
-        Params:
-            dataset_name: Dataset Name
-            n_silos: Silos Number
-            n_users: Users Number
-            user_alpha: User Data Distribution Parameter
-            silo_alpha: Silo Data Distribution Parameter
-            seed: Random Seed
-            mode: Distribution Mode, 'uniform', 'zipf' or 'dirichlet'
-            max_samples: Max samples
+        初始化数据集并将数据分配到机构和用户 
+        参数:
+            dataset_name: 数据集名称
+            n_silos: 机构数量
+            n_users: 用户数量
+            user_alpha: 用户数据分布参数
+            silo_alpha: 机构数据分布参数
+            seed: 随机种子
+            mode: 分布模式，'uniform'(均匀)、'zipf'或'dirichlet'
+            max_samples: 最大样本数
         """
         self.seed = seed
         self.dataset_name = dataset_name
@@ -32,19 +32,19 @@ class Dataset:
     
     def get_whole_train_data(self):
         """
-        Get the whole train data.
+        获取全部训练数据 
         """
         return self.dataset_train
     
     def get_whole_test_data(self):
         """
-        Get the whole test data.
+        获取全部测试数据 
         """
         return self.dataset_test
     
     def divide_dataset(self):
         """
-        Divide the whole train data to users and then to silos.
+        将整个训练数据分配到用户，然后再分配到机构 
         """
         n_data = len(self.dataset_train)
         
@@ -60,10 +60,10 @@ class Dataset:
     
     def distribute_to_user(self, n_data=None):
         """
-        Distribute Users data, Uniform, Zipf or Dirichlet.
+        将用户数据按均匀、Zipf或Dirichlet分布分配 
         
-        Args:
-            n_data: Number of samples to use. If None, use all samples.
+        参数:
+            n_data: 要使用的样本数 如果为None，则使用所有样本 
         """
         np.random.seed(self.seed)
         
@@ -104,7 +104,7 @@ class Dataset:
 
     def distribute_to_silo(self):
         """
-        Distribute Silos data, Uniform, Zipf or Dirichlet.
+        将机构数据按均匀、Zipf或Dirichlet分布分配 
         """
         np.random.seed(self.seed)
 
@@ -141,13 +141,13 @@ class Dataset:
 
     def get_dataset(self, user_data_indices):
         """
-        Converting pre-allocated indexes to client-specific datasets.
+        将预分配的索引转换为特定客户端的数据集 
         
-        Params:
-            user_data_indices: Data indices for a user or a collection of users.
+        参数:
+            user_data_indices: 用户或用户集合的数据索引 
         
-        Returns:
-            data: Dataset containing the specified indices.
+        返回:
+            data: 包含指定索引的数据集 
         """
         data_indices = []
         for user_indices in user_data_indices:
@@ -160,13 +160,13 @@ class Dataset:
         
     def get_silo_dataset(self, silo_id):
         """
-        Get the dataset for a specific silo.
+        获取特定机构的数据集 
         
-        Params:
-            silo_id: The ID of the silo.
+        参数:
+            silo_id: 机构的ID 
         
-        Returns:
-            silo_dataset: Dataset for the specified silo.
+        返回:
+            silo_dataset: 指定机构的数据集 
         """
         # 获取该silo所有用户的数据索引
         user_data_indices = []
@@ -180,9 +180,9 @@ class Dataset:
 
     def get_user_histogram(self, silo_id):
         """
-        Get the histogram of user's data.
-        Returns:
-            A list where the index corresponds to user_id and the value is the number of samples
+        获取用户数据的直方图 
+        返回:
+            一个列表，其中索引对应user_id，值是该用户的样本数量
         """
         user_histogram = [0] * self.n_users
         
@@ -193,26 +193,25 @@ class Dataset:
 
     def get_silos_indices(self, silo_id):
         """
-        Get the data indices for all users within a specific silo.
+        获取特定机构内所有用户的数据索引 
 
-        Params:
-            silo_id: The ID of the silo.
+        参数:
+            silo_id: 机构的ID 
 
-        Returns:
-            A dictionary where keys are user_ids and values are lists of data indices
-            belonging to that user within the specified silo.
-            Example: {user_0: [idx1, idx2, ...], user_1: [idx_a, idx_b, ...]}
+        返回:
+            一个字典，其中键是user_ids，值是属于该用户在指定机构内的数据索引列表 
+            示例: {user_0: [idx1, idx2, ...], user_1: [idx_a, idx_b, ...]}
         """
         return self.silos_indices_of_data[silo_id]
 
     def get_silos_weights(self):
         """
-        Get the weights of silos.
+        获取机构的权重 
         """
         return self.silos_weights
 
     def get_user_number(self):
         """
-        Get the number of users.
+        获取用户数量 
         """
         return self.n_users

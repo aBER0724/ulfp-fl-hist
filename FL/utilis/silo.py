@@ -22,33 +22,32 @@ class Silo:
                  sigma=5.0, max_grad_norm=1.0, histogram_F=100.0,
                  histogram_epsilon=1.0, histogram_k_div = 10):
         """
-        Initializes a Silo instance.
+        初始化机构实例 
 
-        Args:
-            silo_id (int): Unique identifier for the silo.
-            server (FL.utilis.server.Server): Reference to the central server instance.
-            dataset (FL.utilis.dataset.Dataset): Reference to the dataset object, used to get
-                                                 silo-specific data and user distributions.
-            model (torch.nn.Module): The initial model architecture.
-            learning_rate (float): Learning rate for local training.
-            q_for_batch_size (float): Sampling rate q, fraction of silo's data to form a minibatch
-                                      (e.g., 0.1 for 10% of data).
-            epoch_num (int): Number of local training epochs per FL round.
-            is_secure (str, optional): Specifies the DP mode for model training.
-                                       'ndp' (non-private), 'cldp' (client-level DP via Opacus),
-                                       'uldp' (user-level DP, custom implementation). Defaults to 'ndp'.
-            is_histogram_secure (str, optional): Specifies DP mode for user histograms.
-                                                 'dp' (Gaussian noise), 'sf_dp' (StructureFirst),
-                                                 'nf_dp' (NoiseFirst), '' (non-private). Defaults to ''.
-            delta (float, optional): Target delta for (epsilon, delta)-DP. Defaults to 1e-5.
-            sigma (float, optional): Noise multiplier for DP mechanisms. Defaults to 5.0.
-            max_grad_norm (float, optional): Gradient clipping norm (C). Defaults to 1.0.
-            histogram_F (float, optional): Upper bound on histogram counts, used for sensitivity
-                                           in StructureFirst with SSE. Defaults to 100.0.
-            histogram_epsilon (float, optional): Epsilon for histogram DP. Defaults to 1.0.
-            histogram_k_div (int, optional): Divisor to determine `k` (number of bins) for
-                                             StructureFirst/NoiseFirst based on histogram length
-                                             (k = len(hist) / k_div). Defaults to 10.
+        参数:
+            silo_id (int): 机构的唯一标识符 
+            server (FL.utilis.server.Server): 中央服务器实例的引用 
+            dataset (FL.utilis.dataset.Dataset): 数据集对象的引用，用于获取
+                                                机构特定数据和用户分布 
+            model (torch.nn.Module): 初始模型架构 
+            learning_rate (float): 本地训练的学习率 
+            q_for_batch_size (float): 采样率q，形成小批次的机构数据比例
+                                      (例如0.1表示10%的数据) 
+            epoch_num (int): 每轮联邦学习的本地训练周期数 
+            is_secure (str, 可选): 指定模型训练的DP模式 
+                                   'ndp'(非私有), 'cldp'(通过Opacus的客户端级DP),
+                                   'uldp'(用户级DP，自定义实现) 默认为'ndp' 
+            is_histogram_secure (str, 可选): 指定用户直方图的DP模式 
+                                             'dp'(高斯噪声), 'sf_dp'(StructureFirst),
+                                             'nf_dp'(NoiseFirst), ''(非私有) 默认为'' 
+            delta (float, 可选): (epsilon, delta)-DP的目标delta值 默认为1e-5 
+            sigma (float, 可选): DP机制的噪声乘数 默认为5.0 
+            max_grad_norm (float, 可选): 梯度裁剪范数(C) 默认为1.0 
+            histogram_F (float, 可选): 直方图计数的上限，用于StructureFirst的敏感度
+                                       和SSE 默认为100.0 
+            histogram_epsilon (float, 可选): 直方图DP的epsilon值 默认为1.0 
+            histogram_k_div (int, 可选): 确定`k`(分箱数)的除数，用于基于直方图长度的
+                                        StructureFirst/NoiseFirst(k = len(hist) / k_div) 默认为10 
         """
         self.id = silo_id
         self.server = server
@@ -97,43 +96,43 @@ class Silo:
 
     def get_model(self):
         """
-        Returns the current local model of the silo.
+        返回机构当前的本地模型 
 
-        Returns:
-            torch.nn.Module: The silo's local model.
+        返回:
+            torch.nn.Module: 机构的本地模型 
         """
         return self.model
 
     def receive_global_model(self, global_model):
         """
-        Receives and updates the silo's local model with the global model from the server.
+        接收并更新机构的本地模型为来自服务器的全局模型 
 
-        Args:
-            global_model (torch.nn.Module): The global model received from the server.
+        参数:
+            global_model (torch.nn.Module): 从服务器接收的全局模型 
         """
         self.model = copy.deepcopy(global_model)
         self.model = self.model.to(self.device)
 
     def get_user_histogram(self, is_secure=True):
         """
-        Returns the user histogram for this silo, potentially with differential privacy applied.
+        返回此机构的用户直方图，可能应用了差分隐私 
 
-        The type of DP applied depends on `self.histogram_mode`.
+        应用的DP类型取决于`self.histogram_mode` 
 
-        Args:
-            is_secure (bool, optional): If True, applies DP mechanism specified by `self.histogram_mode`.
-                                       If False, returns the raw histogram. Defaults to True.
-                                       (Note: Original param `is_secure` renamed for clarity).
-        Returns:
-            list[int]: The user histogram (list of sample counts per user in this silo).
-                       This histogram may be noisy if DP is applied.
+        参数:
+            is_secure (bool, 可选): 如果为True，应用`self.histogram_mode`指定的DP机制 
+                                   如果为False，返回原始直方图 默认为True 
+                                   (注意: 原参数`is_secure`为清晰重命名) 
+        返回:
+            list[int]: 用户直方图(此机构中每个用户的样本计数列表) 
+                       如果应用了DP，此直方图可能包含噪声 
         
-        Raises:
-            NameError: If `F` is used in `sf_dp` mode but not defined (should be `self.histogram_F`).
+        抛出:
+            NameError: 如果在`sf_dp`模式下使用了`F`但未定义(应为`self.histogram_F`) 
         """
         if is_secure and self.histogram_mode:
             hist_len = len(self.user_histogram)
-            if hist_len == 0: return [] # Return empty if original is empty
+            if hist_len == 0: return [] # 如果原始为空则返回空
 
             if self.histogram_mode == "dp":
                 return histogram_dp(self.user_histogram, self.sigma)
@@ -152,21 +151,21 @@ class Silo:
 
     def receive_user_histogram(self, global_summed_user_histogram):
         """
-        Receives the globally summed user histogram and calculates local user weights.
+        接收全局汇总的用户直方图并计算本地用户权重 
 
-        The weight for a user `i` in this silo is calculated as:
+        此机构中用户`i`的权重计算为:
         `local_user_i_samples / (global_sum_for_user_i_samples + epsilon_smooth)`.
-        These weights are stored in `self.user_weight_list`.
+        这些权重存储在`self.user_weight_list`中 
 
-        Args:
-            global_summed_user_histogram (list[int]): A list where each element is the total
-                                                      sample count for that user ID across ALL silos.
-        Returns:
-            list[float]: The calculated list of user weights for users in this silo.
+        参数:
+            global_summed_user_histogram (list[int]): 每个元素是所有机构中
+                                                      该用户ID的总样本计数的列表 
+        返回:
+            list[float]: 此机构中用户的权重列表 
         """
         if len(global_summed_user_histogram) != len(self.user_histogram):
             logger.error(f"Silo {self.id}: Mismatch in length between global histogram ({len(global_summed_user_histogram)}) and local user_histogram ({len(self.user_histogram)}). Cannot compute weights.")
-            # Fallback: keep weights as 1s or handle error appropriately
+            # 回退: 保持权重为1或适当处理错误
             self.user_weight_list = [1.0 for _ in range(len(self.user_histogram))]
             return self.user_weight_list
 
@@ -176,28 +175,27 @@ class Silo:
 
     def local_silos_sgd(self, global_model, current_iter):
         """
-        Performs local Stochastic Gradient Descent (SGD) training for the silo.
+        为机构执行本地随机梯度下降(SGD)训练 
 
-        The behavior depends on `self.train_mode`:
-        - 'cldp': Client-Level Differential Privacy. Uses Opacus PrivacyEngine to make
-                  the model and optimizer private. Epsilon is tracked via PrivacyEngine.
-        - 'uldp': User-Level Differential Privacy. Iterates through users in the silo,
-                  trains a model for each user's data, clips and aggregates their updates
-                  with added noise. Epsilon is calculated based on the number of active users
-                  and noise level.
-        - 'ndp' (or other): Non-private training. Standard SGD on the silo's data.
+        行为取决于`self.train_mode`:
+        - 'cldp': 客户端级差分隐私 使用Opacus PrivacyEngine使
+                  模型和优化器私有化 通过PrivacyEngine跟踪epsilon 
+        - 'uldp': 用户级差分隐私 遍历机构中的用户，
+                  为每个用户的数据训练模型，裁剪并聚合他们的更新
+                  并添加噪声 Epsilon基于活跃用户数和噪声水平计算 
+        - 'ndp'(或其他): 非私有训练 对机构数据执行标准SGD 
 
-        Args:
-            global_model (torch.nn.Module): The current global model received from the server,
-                                            used as the starting point for local training.
-            current_iter (int): The current federated learning iteration number (for logging).
+        参数:
+            global_model (torch.nn.Module): 从服务器接收的当前全局模型，
+                                            用作本地训练的起点 
+            current_iter (int): 当前联邦学习迭代次数(用于日志记录) 
 
-        Returns:
+        返回:
             tuple[float, float]:
-                - avg_loss: The average training loss over local epochs for this silo.
-                            For 'uldp', it's the average loss across participating users.
-                - avg_acc: The average training accuracy over local epochs for this silo.
-                           For 'uldp', it's the average accuracy across participating users.
+                - avg_loss: 此机构本地训练周期的平均训练损失 
+                             对于'uldp'，它是参与用户的平均损失 
+                - avg_acc: 此机构本地训练周期的平均训练准确率 
+                            对于'uldp'，它是参与用户的平均准确率 
         """
         original_model = copy.deepcopy(global_model)
         original_model = original_model.to(self.device)
@@ -278,7 +276,7 @@ class Silo:
                 total_acc += user_avg_acc
                 valid_user_count += 1
 
-                # This is a simplified sum; proper composition (e.g. RDP) is needed for rigorous ULDP.
+                # 这是一个简化的总和；严格的ULDP需要适当的组合(如RDP) 
                 epsilon_spent_this_round_for_silo += actual_epsilon_per_user
 
             if valid_user_count > 0:
@@ -334,25 +332,25 @@ class Silo:
 
     def train(self, model, train_loader, optimizer=None, current_iter=0):
         """
-        Performs the actual local training loop for a given model and data loader.
+        为给定模型和数据加载器执行实际的本地训练循环 
 
-        This method is called by `local_silos_sgd` for each epoch of local training.
-        It handles the forward pass, loss calculation, backward pass, and optimizer step.
+        此方法由`local_silos_sgd`为每个本地训练周期调用 
+        它处理前向传播、损失计算、反向传播和优化器步骤 
 
-        Args:
-            model (torch.nn.Module): The model to be trained.
-            train_loader (torch.utils.data.DataLoader): DataLoader for the training data.
-            optimizer (torch.optim.Optimizer, optional): The optimizer to use. If None,
-                                                         `self.optimizer` is used (if it's compatible
-                                                         with the passed model). Defaults to None.
-            current_iter (int, optional): The current federated learning iteration,
-                                          used for logging purposes within the epoch loop (currently commented out).
-                                          Defaults to 0.
+        参数:
+            model (torch.nn.Module): 要训练的模型 
+            train_loader (torch.utils.data.DataLoader): 训练数据的数据加载器 
+            optimizer (torch.optim.Optimizer, 可选): 使用的优化器 如果为None，
+                                                      则使用`self.optimizer`(如果它与
+                                                      传入的模型兼容) 默认为None 
+            current_iter (int, 可选): 当前联邦学习迭代，
+                                       用于周期循环内的日志记录(当前已注释) 
+                                       默认为0 
 
-        Returns:
+        返回:
             tuple[float, float]:
-                - avg_loss: The average loss over all epochs.
-                - avg_acc: The average accuracy over all epochs.
+                - avg_loss: 所有周期的平均损失 
+                - avg_acc: 所有周期的平均准确率 
         """
         model.train()
         total_loss = 0.0
@@ -368,33 +366,33 @@ class Silo:
 
             num_batches = 0
             for id, (data, target) in enumerate(train_loader):
-                # Empty the gradient
+                # 清空梯度
                 optimizer.zero_grad()
 
-                # Move the data to the correct device (CPU/GPU)
+                # 将数据移动到正确的设备(CPU/GPU)
                 data = data.to(self.device, dtype=torch.float32)
                 target = target.to(self.device, dtype=torch.long)
 
-                # Forward pass using the provided model
+                # 使用提供的模型进行前向传播
                 output = model(data)
                 loss = F.cross_entropy(output, target)
 
-                # Backward propagation
+                # 反向传播
                 loss.backward()
 
-                # Step the optimizer
+                # 执行优化器步骤
                 optimizer.step()
 
-                # Accumulate the loss
+                # 累计损失
                 epoch_loss += loss.item()
                 num_batches +=1
 
-                # Calculate the accuracy
+                # 计算准确率
                 pred = output.argmax(dim=1, keepdim=True)
                 epoch_correct += pred.eq(target.view_as(pred)).sum().item()
                 epoch_samples += target.size(0)
 
-            # Calculate the average loss and accuracy for the epoch
+            # 计算周期的平均损失和准确率
             if num_batches > 0 and epoch_samples > 0:
                 epoch_avg_loss = epoch_loss / num_batches
                 epoch_avg_acc = epoch_correct / epoch_samples * 100.0

@@ -6,7 +6,7 @@ class PrivateFraudNet(nn.Module):
         self.input = nn.Sequential(
             nn.Linear(input_dim, hidden_dim), nn.ReLU(), nn.GroupNorm(1, hidden_dim)
         )
-        # make the number of hidden dim layers configurable
+        # 使隐藏层维度数量可配置
         self.layers = nn.ModuleList()
         for i in range(num_layers):
             self.layers.append(nn.Linear(hidden_dim, hidden_dim))
@@ -14,7 +14,7 @@ class PrivateFraudNet(nn.Module):
             self.layers.append(nn.GroupNorm(1, hidden_dim))
             self.layers.append(nn.Dropout(0.5))
 
-        # final layer
+        # 最终输出层
         self.fc = nn.Linear(hidden_dim, 2)
 
     def forward(self, x):

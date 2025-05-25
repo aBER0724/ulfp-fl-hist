@@ -16,35 +16,35 @@ from FL.utilis.dataset import Dataset
 
 def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epochs, local_learning_rate, global_learning_rate, user_alpha, silo_alpha, mode, q_for_batch_size, is_secure, is_histogram_secure, histogram_epsilon, delta, sigma, max_grad_norm, max_samples, iters):
     """
-    Performs the Federated Averaging (FedAvg) algorithm.
+    执行联邦平均(FedAvg)算法 
 
-    This function simulates a federated learning process involving a central server and multiple silos.
-    It handles data distribution, local training in silos, model aggregation at the server,
-    and optionally incorporates differential privacy mechanisms.
+    该函数模拟了一个包含中央服务器和多个数据机构的联邦学习过程 
+    它处理数据分布、机构中的本地训练、服务器上的模型聚合，
+    并可选择性地加入差分隐私机制 
 
-    Args:
-        dataset_name (str): Name of the dataset to use (e.g., 'mnist', 'creditcard').
-        model (torch.nn.Module): The PyTorch model to be trained.
-        n_silos (int): The total number of silos participating in the FL process.
-        n_users (int): The total number of users whose data is distributed among silos.
-        seed (int): Random seed for reproducibility of data distribution and other stochastic processes.
-        batch_size (int): Batch size used for local training within each silo.
-        local_epochs (int): Number of epochs each silo trains locally in each FL round.
-        local_learning_rate (float): Learning rate for the local optimizer in silos.
-        global_learning_rate (float): Learning rate or aggregation weight for the server's global model update.
-        user_alpha (float): Parameter controlling data distribution heterogeneity among users (e.g., for Zipf or Dirichlet).
-        silo_alpha (float): Parameter controlling data distribution heterogeneity among silos.
-        mode (str): Data distribution mode ('uniform', 'zipf', 'dirichlet').
-        q_for_batch_size (float): Sampling rate q, used by silos to determine their effective batch size,
-                                  often relevant for privacy accounting (e.g., q = batch_size / N_samples_in_silo).
-        is_secure (str): Specifies the type of differential privacy for model updates ('cldp', 'uldp', 'ndp' for none).
-        is_histogram_secure (str): Specifies DP for user histograms ('dp', 'nf_dp', 'sf_dp', or '' for none).
-        histogram_epsilon (float): Epsilon value for histogram differential privacy if `is_histogram_secure` is enabled.
-        delta (float): Delta parameter for (epsilon, delta)-differential privacy.
-        sigma (float): Noise multiplier (standard deviation of Gaussian noise relative to sensitivity) for DP.
-        max_grad_norm (float): Clipping threshold for gradients to ensure sensitivity for DP.
-        max_samples (int, optional): Maximum number of samples to use from the dataset. If None, uses all samples.
-        iters (int): Total number of federated learning rounds (iterations).
+    参数:
+        dataset_name (str): 使用的数据集名称(如'mnist', 'creditcard')
+        model (torch.nn.Module): 要训练的PyTorch模型
+        n_silos (int): 参与FL过程的机构总数
+        n_users (int): 数据分布在机构中的用户总数
+        seed (int): 用于数据分布和其他随机过程可重现性的随机种子
+        batch_size (int): 每个机构本地训练使用的批量大小
+        local_epochs (int): 每个FL轮次中机构本地训练的epoch数
+        local_learning_rate (float): 机构本地优化器的学习率
+        global_learning_rate (float): 服务器全局模型更新的学习率或聚合权重
+        user_alpha (float): 控制用户间数据分布异质性的参数(如Zipf或Dirichlet)
+        silo_alpha (float): 控制机构间数据分布异质性的参数
+        mode (str): 数据分布模式('uniform', 'zipf', 'dirichlet')
+        q_for_batch_size (float): 采样率q，用于机构确定其有效批量大小，
+                                  通常与隐私计算相关(如q = batch_size / N_samples_in_silo)
+        is_secure (str): 指定模型更新的差分隐私类型('cldp', 'uldp', 'ndp'表示无)
+        is_histogram_secure (str): 指定用户直方图的DP('dp', 'nf_dp', 'sf_dp', 或''表示无)
+        histogram_epsilon (float): 如果启用`is_histogram_secure`，则为直方图差分隐私的epsilon值
+        delta (float): (epsilon, delta)-差分隐私的delta参数
+        sigma (float): DP的噪声乘数(高斯噪声相对于敏感度的标准差)
+        max_grad_norm (float): 梯度裁剪阈值以确保DP的敏感度
+        max_samples (int, optional): 从数据集中使用的最大样本数 如果为None，则使用所有样本
+        iters (int): 联邦学习轮次(迭代)的总数
     """
     dataset = Dataset(dataset_name, n_silos, n_users, user_alpha, silo_alpha, seed, mode, max_samples)
     
@@ -56,17 +56,17 @@ def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epoch
     channel_silos_to_server = []
     histogram_ks = []
     
-    # Silos send user histogram to server
+    # 机构发送用户直方图到服务器
     for i in range(n_silos):
         channel_silos_to_server.append(silos[i].get_user_histogram())
     
-    # Server calculate each user sum of histogram
+    # 服务器计算每个用户的直方图总和
     sumed_user_histogram = server.receive_silos_histogram(channel_silos_to_server)
     
-    # Server broadcast user histogram to silos
+    # 服务器广播用户直方图到机构
     channel_server_to_silos = [sumed_user_histogram for _ in range(n_silos)]
     
-    # Silos receive user histogram from server
+    # 机构从服务器接收用户直方图
     for i in range(n_silos):
         silos[i].receive_user_histogram(channel_server_to_silos[i])
         histogram_ks.append(silos[i].histogram_k)
@@ -84,10 +84,10 @@ def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epoch
 
         logger.info(f"--------------------No.{i} FL--------------------")
 
-        # 1. Broadcast Global Model to silos
+        # 1. 广播全局模型到机构
         channel_server_to_silos = [server.get_model() for _ in range(n_silos)]
 
-        # 2. Local Training and get average metrics
+        # 2. 本地训练并获取平均指标
         avg_loss_total = 0
         avg_acc_total = 0
         epsilon_total = 0
@@ -103,14 +103,14 @@ def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epoch
         avg_loss = avg_loss_total / n_silos
         avg_acc = avg_acc_total / n_silos
 
-        # 3. Aggregate Local Model to Global Model
+        # 3. 聚合本地模型到全局模型
         channel_silos_to_server = [silo.model for silo in silos]
         server.receive_silos_model(channel_silos_to_server)
         
-        # 4. Update Global Model
+        # 4. 更新全局模型
         server.update_global_model()
 
-        # 5. Record training history
+        # 5. 记录训练历史
         losses.append(avg_loss)
         accuracies.append(avg_acc)
         consumed_epsilons.append(epsilon_total)
@@ -154,12 +154,12 @@ def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epoch
         }
     }
 
-    # Create a unique directory for this training run
+    # 为本次训练运行创建唯一目录
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_dir = f"record/output_{timestamp}_s{n_silos}_u{n_users}_e{local_epochs}_{is_secure}"
     os.makedirs(output_dir, exist_ok=True)
     
-    # Save as .pth file in the unique directory
+    # 保存为.pth文件到唯一目录
     filename = f"{output_dir}/fedavg_{dataset_name}_seed{seed}_{mode}_s{n_silos}_ua{user_alpha}_sa{silo_alpha}_{is_secure}_{is_histogram_secure}_he{histogram_epsilon}_sigma{sigma}_mgn{max_grad_norm}_llr{local_learning_rate}_glr{global_learning_rate}_u{n_users}_i{iters}_e{local_epochs}.pth"
     torch.save(record, filename)
     
@@ -170,11 +170,11 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='FedAvg')
     
-    # Basic
+    # 基础参数
     parser.add_argument('--n_silos', type=int, default=10, help='Number of silos')
     parser.add_argument('--n_users', type=int, default=300, help='Number of users')
 
-    # Data Divide
+    # 数据划分
     parser.add_argument('--dataset', type=str, default='mnist', choices=['mnist', 'creditcard'], help='Dataset name')
     parser.add_argument('--max_samples', type=int, default=None, help='Max samples')
     parser.add_argument('--seed', type=int, default=1, help='Random seed')
@@ -182,7 +182,7 @@ if __name__ == "__main__":
     parser.add_argument('--silo_alpha', type=float, default=2.0, help='Silo Alpha parameter')
     parser.add_argument('--distribute_mode', type=str, default='zipf', choices=['zipf','dirichlet','uniform'], help='Distribution mode')
 
-    # FL
+    # 联邦学习参数
     parser.add_argument('--iters', type=int, default=20, help='FL iterations')
     parser.add_argument('--local_epoch', type=int, default=5, help='Local epochs')
     parser.add_argument('--batch_size', type=int, default=64, help='Batch size')
@@ -190,7 +190,7 @@ if __name__ == "__main__":
     parser.add_argument('--local_learning_rate', type=float, default=0.001, help='Local Learning rate')
     parser.add_argument('--global_learning_rate', type=float, default=5.0, help='Global Learning rate')
     
-    # DP
+    # 差分隐私参数
     parser.add_argument('--is_secure', type=str, choices=['cldp', 'uldp', 'ndp'], default='ndp', help='Available Differential Privacy')
     parser.add_argument('--is_histogram_secure', type=str, default='', choices=['dp','nf_dp', 'sf_dp'], help='Histogram Differential Privacy')
     parser.add_argument('--histogram_epsilon', type=float, default=1.0, help='Histogram Epsilon')
@@ -200,11 +200,11 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
-    # Basic
+    # 基础参数
     n_silos = args.n_silos
     n_users = args.n_users
     
-    # Data Divide
+    # 数据划分
     dataset_name = args.dataset
     max_samples = args.max_samples
     seed = args.seed
@@ -212,7 +212,7 @@ if __name__ == "__main__":
     silo_alpha = args.silo_alpha
     distribute_mode = args.distribute_mode
     
-    # FL
+    # 联邦学习参数
     iters = args.iters
     local_epoch = args.local_epoch
     batch_size = args.batch_size
@@ -220,7 +220,7 @@ if __name__ == "__main__":
     global_learning_rate = args.global_learning_rate
     local_learning_rate = args.local_learning_rate
     
-    # DP
+    # 差分隐私参数
     is_secure = args.is_secure
     is_histogram_secure = args.is_histogram_secure
     histogram_epsilon = args.histogram_epsilon
