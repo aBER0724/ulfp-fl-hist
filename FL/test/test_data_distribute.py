@@ -172,8 +172,8 @@ def analyze_distributions(data_indices_of_user, data_indices_of_silo, dataset_tr
                         if count > 0:
                             all_users.add(user_id)
             
-            # 不限制显示的用户数量，显示所有用户
-            # 注意：用户数量可能非常多，可能会导致标签重叠或难以读取
+            # 不限制显示的用户数量, 显示所有用户
+            # 注意：用户数量可能非常多, 可能会导致标签重叠或难以读取
             
             all_users = sorted(all_users)
             
@@ -221,7 +221,7 @@ def analyze_distributions(data_indices_of_user, data_indices_of_silo, dataset_tr
             
             try:
                 sns.heatmap(df_users, 
-                        annot=False,  # 由于用户数量可能很多，移除数值标注
+                        annot=False,  # 由于用户数量可能很多, 移除数值标注
                         fmt='.1f',   # Keep one decimal place
                         cmap='Reds',
                         cbar_kws={'label': 'Percentage (%)'})
@@ -231,10 +231,10 @@ def analyze_distributions(data_indices_of_user, data_indices_of_silo, dataset_tr
                 plt.ylabel('Silos', fontsize=20)
                 
                 # 调整标签以适应大量用户
-                plt.xticks(rotation=90, ha='center', fontsize=8)  # 减小字体，垂直放置标签
+                plt.xticks(rotation=90, ha='center', fontsize=8)  # 减小字体, 垂直放置标签
                 plt.yticks(fontsize=14)  # 调整y轴标签大小
                 
-                # 先进行tight_layout，然后再调整底部空间
+                # 先进行tight_layout, 然后再调整底部空间
                 plt.tight_layout()
                 # 确保图表留出足够空间给x轴标签
                 plt.subplots_adjust(bottom=0.4)

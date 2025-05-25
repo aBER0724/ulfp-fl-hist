@@ -137,7 +137,7 @@
         // --- DP 核心逻辑 ---
         function findOptimalHistogramDp(histogramData, maxK, errorMetric = 'sse') {
             const n = histogramData.length;
-            if (n === 0) { // 如果没有数据，则返回空表
+            if (n === 0) { // 如果没有数据, 则返回空表
                 const emptyDPTable = Array(1).fill(null).map(() => Array(maxK + 1).fill(Infinity));
                 if (maxK >=0) emptyDPTable[0][0] = 0;
                 const emptyPtrTable = Array(1).fill(null).map(() => Array(maxK + 1).fill(0));
@@ -156,7 +156,7 @@
             }
 
             // 2. DP 计算
-            // kVal 是实际用于 DP 表的区间数上限，不超过数据点数 n 或用户指定的 maxK
+            // kVal 是实际用于 DP 表的区间数上限, 不超过数据点数 n 或用户指定的 maxK
             const kVal = Math.min(maxK, n); 
             const dpTable = Array(n + 1).fill(null).map(() => Array(kVal + 1).fill(Infinity));
             const ptrTable = Array(n + 1).fill(null).map(() => Array(kVal + 1).fill(0));
@@ -170,7 +170,7 @@
                     
                     // 最后一个区间的起始索引 lLastBinStartIdx (0-based)
                     // 最后一个区间的数据是 histogramData[lLastBinStartIdx ... iDataEndIdx-1]
-                    // 这个区间至少有1个元素，所以 lLastBinStartIdx <= iDataEndIdx-1
+                    // 这个区间至少有1个元素, 所以 lLastBinStartIdx <= iDataEndIdx-1
                     // 前面 jBins-1 个区间处理了数据 histogramData[0 ... lLastBinStartIdx-1]
                     // 这要求 lLastBinStartIdx >= jBins-1 (因为jBins-1个区间至少需要jBins-1个数据点)
                     for (let lLastBinStartIdx = Math.max(0, jBins - 1); lLastBinStartIdx < iDataEndIdx; lLastBinStartIdx++) {
@@ -198,16 +198,16 @@
         /**
          * 根据指针表 (ptrTable) 和指定的区间数量 (k) 来重建最优的直方图边界。
          * 这个函数通过回溯 ptrTable 来找到分割点。
-         * ptrTable[i][j] 存储的是：当将前 i 个数据点（索引0到i-1）分割成 j 个区间时，
+         * ptrTable[i][j] 存储的是：当将前 i 个数据点（索引0到i-1）分割成 j 个区间时, 
          * 第 j 个（即最后一个）区间的起始数据点索引（0-based）。
          *
          * @param {number[][]} ptrTable - 指针表。
          * @param {number} n - 原始数据点的总数。
          * @param {number} k - 期望重建的区间数量。
-         * @returns {number[]} 一个数组，包含 k 个区间的结束点（exclusive end index）。
-         * 例如，如果k=3，数据长度n，返回 [b1, b2, n]，
+         * @returns {number[]} 一个数组, 包含 k 个区间的结束点（exclusive end index）。
+         * 例如, 如果k=3, 数据长度n, 返回 [b1, b2, n], 
          * 则区间为 [0, b1-1], [b1, b2-1], [b2, n-1]。
-         * 如果k=0，返回空数组。如果k=1，返回[n]。
+         * 如果k=0, 返回空数组。如果k=1, 返回[n]。
          */
         function reconstructBoundaries(ptrTable, n, k) {
             if (k === 0) {
@@ -222,18 +222,18 @@
             }
             // k 是1-based的区间数。ptrTable的列索引对应区间数。
             // ptrTable[n] 对应考虑了n个数据点的情况。
-            // ptrTable[n][k] 存储的是形成k个区间时，最后一个区间的起始点。
+            // ptrTable[n][k] 存储的是形成k个区间时, 最后一个区间的起始点。
             if (k >= ptrTable[0].length || (n > 0 && k > n) || !ptrTable[n] || ptrTable[n][k] === undefined) {
                  console.warn(`无法重建边界: k=${k}, n=${n}。ptrTable 的最大 k 为 ${ptrTable[0].length -1}。可能 k 超出范围或无解。`);
-                 // 如果 k=1 且 n>0，ptrTable[n][1] 应该是 0。
+                 // 如果 k=1 且 n>0, ptrTable[n][1] 应该是 0。
                  if (k === 1 && n > 0 && ptrTable[n] && ptrTable[n][1] !== undefined) {
-                     // 只有一个区间，它的结束点是 n
+                     // 只有一个区间, 它的结束点是 n
                  } else {
                     return [];
                  }
             }
 
-            const internalSplitPoints = []; // 存储内部的分割点 (不包括0，也不包括最后的n)
+            const internalSplitPoints = []; // 存储内部的分割点 (不包括0, 也不包括最后的n)
             let currentNumElements = n;    // 当前考虑的数据点数量
             let numBinsToFind = k;         // 还需找到的区间数量
 
@@ -249,11 +249,11 @@
                 
                 if (lastBinStartIndex < 0 || lastBinStartIndex >= currentNumElements) { 
                      console.error(`重建边界时发现无效指针: k=${numBinsToFind}, 当前元素数=${currentNumElements}, 指针=${lastBinStartIndex}`);
-                     return []; // 错误情况，返回空
+                     return []; // 错误情况, 返回空
                 }
                 // lastBinStartIndex 是下一个迭代中 "n" (currentNumElements)
-                // 这个值本身是一个分割点 (即一个区间的结束点，下一个区间的起始点)
-                internalSplitPoints.unshift(lastBinStartIndex); // 加到最前面，保持顺序
+                // 这个值本身是一个分割点 (即一个区间的结束点, 下一个区间的起始点)
+                internalSplitPoints.unshift(lastBinStartIndex); // 加到最前面, 保持顺序
 
                 currentNumElements = lastBinStartIndex; // 下一轮处理到这个点为止的数据
                 numBinsToFind--;
@@ -261,7 +261,7 @@
             
             // finalBoundaries 应该是 [split1, split2, ..., n]
             const finalBoundaries = [...internalSplitPoints];
-            if (n > 0) { // 只有当有数据时，n才是一个有效的边界
+            if (n > 0) { // 只有当有数据时, n才是一个有效的边界
                 finalBoundaries.push(n);
             }
             
@@ -270,8 +270,8 @@
                 console.warn(`重建的边界数量 ${finalBoundaries.length} 与期望的 k=${k} 不符。边界: [${finalBoundaries.join(', ')}]`);
                 // 如果 k=1 且 n>0, internalSplitPoints 为空, finalBoundaries 为 [n], 长度为1. 正确.
             }
-            if (n === 0 && k === 0) return []; // 0个数据0个区间，是空边界
-            if (n > 0 && k === 0) return []; // 有数据但0个区间，也是空边界
+            if (n === 0 && k === 0) return []; // 0个数据0个区间, 是空边界
+            if (n > 0 && k === 0) return []; // 有数据但0个区间, 也是空边界
 
             return finalBoundaries;
         }
@@ -359,11 +359,11 @@
                 }
                 if (!boundaries || boundaries.length === 0) { 
                     if (originalData.length > 0) { 
-                        // 如果有原始数据但没有边界（例如 k=0），则不绘制优化直方图的条形
+                        // 如果有原始数据但没有边界（例如 k=0）, 则不绘制优化直方图的条形
                         // 但可能需要显示一个消息或空的坐标轴
-                        // 这里我们假设如果 boundaries 为空，则不绘制条形
+                        // 这里我们假设如果 boundaries 为空, 则不绘制条形
                         svgContainer.append("text").attr("x", "50%").attr("y", 20).attr("text-anchor", "middle").text("无优化区间可显示。");
-                        // return; // 可以选择返回，或者继续绘制空的坐标轴
+                        // return; // 可以选择返回, 或者继续绘制空的坐标轴
                     } else { // originalData 也为空
                          svgContainer.append("text").attr("x", "50%").attr("y", 20).attr("text-anchor", "middle").text("无数据可绘制。");
                         return;
@@ -398,7 +398,7 @@
                 data.forEach((val, idx) => processedData.push({ index: idx, value: val, originalValue: val }));
             }
 
-            // 即使 processedData 为空 (例如 k=0 优化)，也尝试绘制坐标轴
+            // 即使 processedData 为空 (例如 k=0 优化), 也尝试绘制坐标轴
             // if (processedData.length === 0 && originalData && originalData.length > 0) { 
             //      svgContainer.append("text").attr("x", "50%").attr("y", 20).attr("text-anchor", "middle").text("无法生成优化直方图的展示数据。");
             //      return;
@@ -487,10 +487,10 @@
                 boundaries.slice(0, -1).forEach(boundaryEndIndex => { 
                     if (boundaryEndIndex === 0) return; // 不在最开始画线
                     // boundaryEndIndex 是一个区间的结束点 (exclusive)
-                    // 线应该画在这个区间的右边，即下一个区间的开始处
+                    // 线应该画在这个区间的右边, 即下一个区间的开始处
                     // x.domain() 是原始数据的索引 [0, 1, ..., n-1]
                     // 如果 boundaryEndIndex 是 b_i, 它代表原始数据索引 b_i
-                    // 线应该在 x(b_i -1) 这个bar的右边，或者说在 x(b_i) 这个bar的左边
+                    // 线应该在 x(b_i -1) 这个bar的右边, 或者说在 x(b_i) 这个bar的左边
                     const xPos = x(boundaryEndIndex); 
                     if (xPos !== undefined) { // 确保 boundaryEndIndex 在 x 轴的定义域内
                         svg.append("line")
@@ -551,7 +551,7 @@
             document.getElementById('dpTableTitle').textContent = `DP 表 (dp_table) - ${metricName}`;
             document.getElementById('dpTableDescription').textContent = `dp_table[i][j] 表示将前 i 个数据点分为 j 个区间的最小总${metricName}。`;
             document.getElementById('ptrTableTitle').textContent = `指针表 (ptr_table) - ${metricName}`;
-            document.getElementById('ptrTableDescription').textContent = `ptr_table[i][j] 存储最后一个区间的起始索引，用于将前 i 个数据点分为 j 个区间 (基于${metricName})。`;
+            document.getElementById('ptrTableDescription').textContent = `ptr_table[i][j] 存储最后一个区间的起始索引, 用于将前 i 个数据点分为 j 个区间 (基于${metricName})。`;
             document.getElementById('optimizedHistogramTitle').textContent = `优化后的直方图 (${metricName} - ${representativeType})`;
 
 
@@ -613,7 +613,7 @@
             } else if (n === 0 && maxK === 0) { // n=0, maxK=0, finalK should have k=0
                  document.getElementById('reconstructionSection').classList.remove('hidden');
             }
-             else { // 其他情况，例如 n > 0 但 maxK = 0 （意味着 k=0 是唯一选项）
+             else { // 其他情况, 例如 n > 0 但 maxK = 0 （意味着 k=0 是唯一选项）
                  if (maxK === 0 && n > 0) { // 应该允许选择 k=0
                     const option = document.createElement('option');
                     option.value = 0;
@@ -645,7 +645,7 @@
                  document.getElementById('reconstructedBoundaries').textContent = '请先运行计算并选择一个有效的最终区间数 (k)。';
                  return;
             }
-             if (!finalKStr && n === 0) { // 如果没有数据，finalKStr可能是空的，但如果k=0是唯一选项，则应允许
+             if (!finalKStr && n === 0) { // 如果没有数据, finalKStr可能是空的, 但如果k=0是唯一选项, 则应允许
                  if (document.getElementById('finalK').options.length === 1 && document.getElementById('finalK').value === "0") {
                      // Proceed with k=0 for n=0
                  } else {

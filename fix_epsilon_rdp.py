@@ -24,17 +24,17 @@ except ImportError:
 # =============================================================================
 def get_silo_user_counts(seed: int, n_silos: int, n_users: int, config: dict) -> list[int]:
     """
-    根据 seed 和 config 重现 Silo 分配，并返回每个 Silo 的用户数 
+    根据 seed 和 config 重现 Silo 分配, 并返回每个 Silo 的用户数 
 
     Args:
         seed: 原始运行使用的随机种子 
         n_silos: Silo 的总数 
         n_users: 用户总数 
-        config: 从 checkpoint 加载的 training_config 字典，
+        config: 从 checkpoint 加载的 training_config 字典, 
                 包含 Dataset 类初始化所需的参数 
 
     Returns:
-        一个长度为 n_silos 的整数列表，第 j 个元素是分配给 Silo j 的用户数 N_j 
+        一个长度为 n_silos 的整数列表, 第 j 个元素是分配给 Silo j 的用户数 N_j 
 
     Raises:
         ImportError: 如果无法导入所需的 Dataset 类 
@@ -55,7 +55,7 @@ def get_silo_user_counts(seed: int, n_silos: int, n_users: int, config: dict) ->
         try:
             dataset_name = config['dataset_name']
             mode = config['mode']
-            user_alpha = config.get('user_alpha', 0.5) # 使用 get 获取，允许默认值
+            user_alpha = config.get('user_alpha', 0.5) # 使用 get 获取, 允许默认值
             silo_alpha = config.get('silo_alpha', 2.0)
             max_samples = config.get('max_samples', None)
         except KeyError as e:
@@ -83,14 +83,14 @@ def get_silo_user_counts(seed: int, n_silos: int, n_users: int, config: dict) ->
         silo_user_counts = []
         for silo_id in range(n_silos):
             # 假设 silos_indices_of_data 是存储分配结果的属性
-            # 并且其键是 silo_id，值是包含该 silo 用户数据的字典或列表
+            # 并且其键是 silo_id, 值是包含该 silo 用户数据的字典或列表
             # 我们需要计算每个 silo_id 下有多少个用户
             if hasattr(data_distributor, 'silos_indices_of_data') and isinstance(data_distributor.silos_indices_of_data, dict):
                  users_in_silo = data_distributor.silos_indices_of_data.get(silo_id, {})
                  count = len(users_in_silo) # 字典的长度即用户数
                  silo_user_counts.append(count)
             else:
-                 # 如果结构不同，你需要修改这里的逻辑
+                 # 如果结构不同, 你需要修改这里的逻辑
                  print(f"错误：无法从 Dataset 对象中确定 Silo {silo_id} 的用户数 ")
                  print("请检查 Dataset 类实现或修改此函数 ")
                  raise AttributeError("无法访问或解析 silos_indices_of_data 属性 ")
@@ -102,7 +102,7 @@ def get_silo_user_counts(seed: int, n_silos: int, n_users: int, config: dict) ->
 
     except ImportError:
         print("错误: 无法从 'FL.utilis.dataset' 导入 'Dataset' 类 ")
-        print("请确保该文件存在，并且脚本是从正确的项目根目录运行 ")
+        print("请确保该文件存在, 并且脚本是从正确的项目根目录运行 ")
         raise
     except Exception as e:
         print(f"在 get_silo_user_counts 函数中发生错误: {e}")
@@ -117,10 +117,10 @@ def calculate_epsilon_silo_round_approx(n_j: int, sigma: float, delta: float) ->
     """
     计算单个 Silo 单轮的近似 (epsilon, delta)-DP 值 
 
-    此函数主要用于在多 Silo 场景下，快速估算哪个 Silo 在当前轮次贡献了最大的隐私预算消耗（即具有最高的 epsilon），
+    此函数主要用于在多 Silo 场景下, 快速估算哪个 Silo 在当前轮次贡献了最大的隐私预算消耗（即具有最高的 epsilon）, 
     这通常对应于具有最小等效噪声乘数 (noise multiplier) 的 Silo 
     近似公式为: epsilon ≈ sqrt(N_j) * sqrt(2 * log(1.25 / delta)) / (sigma * 100)
-    注意: 此处 sigma 是原始噪声标准差，分母中的 100 是一个缩放因子，用于匹配特定场景下的噪声乘数计算 
+    注意: 此处 sigma 是原始噪声标准差, 分母中的 100 是一个缩放因子, 用于匹配特定场景下的噪声乘数计算 
 
     Args:
         n_j (int): Silo j 中的用户数量 
@@ -128,7 +128,7 @@ def calculate_epsilon_silo_round_approx(n_j: int, sigma: float, delta: float) ->
         delta (float): 目标差分隐私参数 delta 
 
     Returns:
-        float: 计算得到的近似 epsilon 值 如果输入无效（如 delta 不在 (0,1) 范围或 n_j=0 且 sigma=0），
+        float: 计算得到的近似 epsilon 值 如果输入无效（如 delta 不在 (0,1) 范围或 n_j=0 且 sigma=0）, 
                可能返回 0.0, float('inf'), 或 float('nan') 
     """
     if n_j == 0:
@@ -151,13 +151,13 @@ def calculate_epsilon_silo_round_approx(n_j: int, sigma: float, delta: float) ->
 
 def correct_epsilon_in_checkpoint(original_pth_path: str, corrected_pth_path: str):
     """
-    加载指定的 PyTorch checkpoint 文件，使用 RDP 会计方法重新计算累积的 DP epsilon，
-    更新 checkpoint 内的 epsilon 历史和最终 epsilon 值，并将修正后的数据保存到新的文件 
+    加载指定的 PyTorch checkpoint 文件, 使用 RDP 会计方法重新计算累积的 DP epsilon, 
+    更新 checkpoint 内的 epsilon 历史和最终 epsilon 值, 并将修正后的数据保存到新的文件 
 
     Args:
         original_pth_path (str): 原始 .pth checkpoint 文件的路径 
         corrected_pth_path (str): 保存修正后 .pth checkpoint 文件的路径 
-                                  如果目录不存在，会尝试创建 
+                                  如果目录不存在, 会尝试创建 
 
     Side Effects:
         - 读取 `original_pth_path` 文件 
@@ -197,15 +197,15 @@ def correct_epsilon_in_checkpoint(original_pth_path: str, corrected_pth_path: st
     delta = config['delta']
     n_silos = config['n_silos']
     n_users = config['n_users']
-    max_grad_norm = config['max_grad_norm'] # C, 用于上下文理解，但不直接参与 RDP 计算
+    max_grad_norm = config['max_grad_norm'] # C, 用于上下文理解, 但不直接参与 RDP 计算
 
     if 'consumed_epsilons' not in history:
         print("错误: 'training_history' 中缺少 'consumed_epsilons' ")
         return
     num_rounds = len(history['consumed_epsilons'])
     if num_rounds == 0:
-        print("警告: 训练历史中没有轮次记录，无需修正 Epsilon ")
-        # 仍然可以尝试保存（如果需要添加其他信息），或者直接退出
+        print("警告: 训练历史中没有轮次记录, 无需修正 Epsilon ")
+        # 仍然可以尝试保存（如果需要添加其他信息）, 或者直接退出
         # 这里我们选择退出
         return
     print(f"从历史记录中找到 {num_rounds} 轮 ")
@@ -234,7 +234,7 @@ def correct_epsilon_in_checkpoint(original_pth_path: str, corrected_pth_path: st
     print("使用 RDP Accountant 重新计算累积 Epsilon...")
     try:
         # 使用从 config 加载的 delta 初始化会计对象
-        # 对于高斯机制，推荐使用 GaussianPrivacyAccountant
+        # 对于高斯机制, 推荐使用 GaussianPrivacyAccountant
         accountant = RdpAccountant()
     except ValueError as e:
         print(f"错误: 初始化 RDP Accountant 失败 (delta={delta} 无效?): {e}")
@@ -254,7 +254,7 @@ def correct_epsilon_in_checkpoint(original_pth_path: str, corrected_pth_path: st
                 active_silos_this_round = True
                 if sigma_param > 0:
                     # 计算等效噪声乘数: noise_multiplier = sigma_param / sqrt(N_j)
-                    # 使用缩放因子1000来调整噪声乘数，修正epsilon计算
+                    # 使用缩放因子1000来调整噪声乘数, 修正epsilon计算
                     current_multiplier = (sigma_param * 100) / math.sqrt(n_j)
                     min_noise_multiplier_this_round = min(min_noise_multiplier_this_round, current_multiplier)
                     # (可选) 计算近似 epsilon 用于日志
@@ -262,11 +262,11 @@ def correct_epsilon_in_checkpoint(original_pth_path: str, corrected_pth_path: st
                         epsilon_approx = calculate_epsilon_silo_round_approx(n_j, sigma_param, delta)
                         if not math.isnan(epsilon_approx):
                             max_epsilon_approx_this_round = max(max_epsilon_approx_this_round, epsilon_approx)
-                    except ValueError: pass # 忽略计算错误，我们只关心 multiplier
+                    except ValueError: pass # 忽略计算错误, 我们只关心 multiplier
                 else: # sigma_param is 0, means infinite epsilon if n_j > 0
                     min_noise_multiplier_this_round = 0 # 噪声乘数为0对应无穷Epsilon
                     max_epsilon_approx_this_round = float('inf')
-                    break # 一旦为0，就是本轮最小值
+                    break # 一旦为0, 就是本轮最小值
 
         # 记录事件
         current_accumulated_epsilon = 0.0 # 默认无消耗
@@ -280,21 +280,21 @@ def correct_epsilon_in_checkpoint(original_pth_path: str, corrected_pth_path: st
                      print(f"错误: 记录 DP 事件或获取 Epsilon 时出错 (Round {i+1}): {e}")
                      current_accumulated_epsilon = float('nan') # 标记错误
             elif min_noise_multiplier_this_round == 0 or math.isinf(max_epsilon_approx_this_round):
-                 # 噪声为0或近似 Epsilon 为无穷大，意味着总 Epsilon 为无穷大
-                 # 会计库通常能处理后续查询，但我们直接标记
+                 # 噪声为0或近似 Epsilon 为无穷大, 意味着总 Epsilon 为无穷大
+                 # 会计库通常能处理后续查询, 但我们直接标记
                  current_accumulated_epsilon = float('inf')
-                 # 一旦为 inf，后续查询 accountant.get_epsilon 也会是 inf (除非库实现特殊)
-                 # 为确保，我们手动传播 inf
+                 # 一旦为 inf, 后续查询 accountant.get_epsilon 也会是 inf (除非库实现特殊)
+                 # 为确保, 我们手动传播 inf
                  print(f"Round {i+1}: Epsilon became infinite.")
             else: # min_noise_multiplier is inf (e.g. all n_j=0, though handled by active_silos check)
                  # 保持 current_accumulated_epsilon = 0.0
                  pass
-        else: # 没有活动的silo，获取当前的累积值（应该不变）
+        else: # 没有活动的silo, 获取当前的累积值（应该不变）
              current_accumulated_epsilon = accountant.get_epsilon(delta)
 
 
         # 处理累积的无穷大情况
-        # 如果之前的累积值已经是无穷大，那么当前轮也应该是无穷大
+        # 如果之前的累积值已经是无穷大, 那么当前轮也应该是无穷大
         if accumulated_correct_epsilon_history_rdp and math.isinf(accumulated_correct_epsilon_history_rdp[-1]):
             current_accumulated_epsilon = float('inf')
 

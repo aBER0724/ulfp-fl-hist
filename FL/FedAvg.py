@@ -19,7 +19,7 @@ def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epoch
     执行联邦平均(FedAvg)算法 
 
     该函数模拟了一个包含中央服务器和多个数据机构的联邦学习过程 
-    它处理数据分布、机构中的本地训练、服务器上的模型聚合，
+    它处理数据分布、机构中的本地训练、服务器上的模型聚合, 
     并可选择性地加入差分隐私机制 
 
     参数:
@@ -35,15 +35,15 @@ def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epoch
         user_alpha (float): 控制用户间数据分布异质性的参数(如Zipf或Dirichlet)
         silo_alpha (float): 控制机构间数据分布异质性的参数
         mode (str): 数据分布模式('uniform', 'zipf', 'dirichlet')
-        q_for_batch_size (float): 采样率q，用于机构确定其有效批量大小，
+        q_for_batch_size (float): 采样率q, 用于机构确定其有效批量大小, 
                                   通常与隐私计算相关(如q = batch_size / N_samples_in_silo)
         is_secure (str): 指定模型更新的差分隐私类型('cldp', 'uldp', 'ndp'表示无)
         is_histogram_secure (str): 指定用户直方图的DP('dp', 'nf_dp', 'sf_dp', 或''表示无)
-        histogram_epsilon (float): 如果启用`is_histogram_secure`，则为直方图差分隐私的epsilon值
+        histogram_epsilon (float): 如果启用`is_histogram_secure`, 则为直方图差分隐私的epsilon值
         delta (float): (epsilon, delta)-差分隐私的delta参数
         sigma (float): DP的噪声乘数(高斯噪声相对于敏感度的标准差)
         max_grad_norm (float): 梯度裁剪阈值以确保DP的敏感度
-        max_samples (int, optional): 从数据集中使用的最大样本数 如果为None，则使用所有样本
+        max_samples (int, optional): 从数据集中使用的最大样本数 如果为None, 则使用所有样本
         iters (int): 联邦学习轮次(迭代)的总数
     """
     dataset = Dataset(dataset_name, n_silos, n_users, user_alpha, silo_alpha, seed, mode, max_samples)
@@ -57,17 +57,23 @@ def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epoch
     histogram_ks = []
     
     # 机构发送用户直方图到服务器
+    logger.info("--------------SILOS SEND HISTOGRAM TO SERVER-------------")
     for i in range(n_silos):
+        logger.info(f"[SILO-{i} SEND HISTOGRAM TO SERVER]")
         channel_silos_to_server.append(silos[i].get_user_histogram())
     
     # 服务器计算每个用户的直方图总和
+    logger.info("----------------SERVER AGGREGATE HISTOGRAM START---------------")
     sumed_user_histogram = server.receive_silos_histogram(channel_silos_to_server)
+    logger.info("------------SERVER AGGREGATE HISTOGRAM FINISHED-----------")
     
     # 服务器广播用户直方图到机构
     channel_server_to_silos = [sumed_user_histogram for _ in range(n_silos)]
     
     # 机构从服务器接收用户直方图
+    logger.info("----------SERVER BORADCAST AGGREGATED HISTOGRAM-----------")
     for i in range(n_silos):
+        logger.info(f"[SERVER SEND AGGREGATED HISTOGRAM TO S-{i}]")
         silos[i].receive_user_histogram(channel_server_to_silos[i])
         histogram_ks.append(silos[i].histogram_k)
 
@@ -236,8 +242,8 @@ if __name__ == "__main__":
     else:
         raise ValueError(f"Unknown dataset {dataset_name}")
     
-    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    device = torch.device("cuda" if torch.cuda.is_available() else "mps")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cuda" if torch.cuda.is_available() else "mps")
     model = model.to(device)
     print(f"Training device: {device}")
     

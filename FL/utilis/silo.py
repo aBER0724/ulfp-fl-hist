@@ -27,26 +27,26 @@ class Silo:
         参数:
             silo_id (int): 机构的唯一标识符 
             server (FL.utilis.server.Server): 中央服务器实例的引用 
-            dataset (FL.utilis.dataset.Dataset): 数据集对象的引用，用于获取
+            dataset (FL.utilis.dataset.Dataset): 数据集对象的引用, 用于获取
                                                 机构特定数据和用户分布 
             model (torch.nn.Module): 初始模型架构 
             learning_rate (float): 本地训练的学习率 
-            q_for_batch_size (float): 采样率q，形成小批次的机构数据比例
+            q_for_batch_size (float): 采样率q, 形成小批次的机构数据比例
                                       (例如0.1表示10%的数据) 
             epoch_num (int): 每轮联邦学习的本地训练周期数 
             is_secure (str, 可选): 指定模型训练的DP模式 
                                    'ndp'(非私有), 'cldp'(通过Opacus的客户端级DP),
-                                   'uldp'(用户级DP，自定义实现) 默认为'ndp' 
+                                   'uldp'(用户级DP, 自定义实现) 默认为'ndp' 
             is_histogram_secure (str, 可选): 指定用户直方图的DP模式 
                                              'dp'(高斯噪声), 'sf_dp'(StructureFirst),
                                              'nf_dp'(NoiseFirst), ''(非私有) 默认为'' 
             delta (float, 可选): (epsilon, delta)-DP的目标delta值 默认为1e-5 
             sigma (float, 可选): DP机制的噪声乘数 默认为5.0 
             max_grad_norm (float, 可选): 梯度裁剪范数(C) 默认为1.0 
-            histogram_F (float, 可选): 直方图计数的上限，用于StructureFirst的敏感度
+            histogram_F (float, 可选): 直方图计数的上限, 用于StructureFirst的敏感度
                                        和SSE 默认为100.0 
             histogram_epsilon (float, 可选): 直方图DP的epsilon值 默认为1.0 
-            histogram_k_div (int, 可选): 确定`k`(分箱数)的除数，用于基于直方图长度的
+            histogram_k_div (int, 可选): 确定`k`(分箱数)的除数, 用于基于直方图长度的
                                         StructureFirst/NoiseFirst(k = len(hist) / k_div) 默认为10 
         """
         self.id = silo_id
@@ -115,17 +115,17 @@ class Silo:
 
     def get_user_histogram(self, is_secure=True):
         """
-        返回此机构的用户直方图，可能应用了差分隐私 
+        返回此机构的用户直方图, 可能应用了差分隐私 
 
         应用的DP类型取决于`self.histogram_mode` 
 
         参数:
-            is_secure (bool, 可选): 如果为True，应用`self.histogram_mode`指定的DP机制 
-                                   如果为False，返回原始直方图 默认为True 
+            is_secure (bool, 可选): 如果为True, 应用`self.histogram_mode`指定的DP机制 
+                                   如果为False, 返回原始直方图 默认为True 
                                    (注意: 原参数`is_secure`为清晰重命名) 
         返回:
             list[int]: 用户直方图(此机构中每个用户的样本计数列表) 
-                       如果应用了DP，此直方图可能包含噪声 
+                       如果应用了DP, 此直方图可能包含噪声 
         
         抛出:
             NameError: 如果在`sf_dp`模式下使用了`F`但未定义(应为`self.histogram_F`) 
@@ -180,22 +180,22 @@ class Silo:
         行为取决于`self.train_mode`:
         - 'cldp': 客户端级差分隐私 使用Opacus PrivacyEngine使
                   模型和优化器私有化 通过PrivacyEngine跟踪epsilon 
-        - 'uldp': 用户级差分隐私 遍历机构中的用户，
-                  为每个用户的数据训练模型，裁剪并聚合他们的更新
+        - 'uldp': 用户级差分隐私 遍历机构中的用户, 
+                  为每个用户的数据训练模型, 裁剪并聚合他们的更新
                   并添加噪声 Epsilon基于活跃用户数和噪声水平计算 
         - 'ndp'(或其他): 非私有训练 对机构数据执行标准SGD 
 
         参数:
-            global_model (torch.nn.Module): 从服务器接收的当前全局模型，
+            global_model (torch.nn.Module): 从服务器接收的当前全局模型, 
                                             用作本地训练的起点 
             current_iter (int): 当前联邦学习迭代次数(用于日志记录) 
 
         返回:
             tuple[float, float]:
                 - avg_loss: 此机构本地训练周期的平均训练损失 
-                             对于'uldp'，它是参与用户的平均损失 
+                             对于'uldp', 它是参与用户的平均损失 
                 - avg_acc: 此机构本地训练周期的平均训练准确率 
-                            对于'uldp'，它是参与用户的平均准确率 
+                            对于'uldp', 它是参与用户的平均准确率 
         """
         original_model = copy.deepcopy(global_model)
         original_model = original_model.to(self.device)
@@ -310,7 +310,7 @@ class Silo:
                     aggregated_delta += noise
                     self.model.state_dict()[key] += aggregated_delta
 
-            # 聚合添加噪声的场景下，考虑用户数量
+            # 聚合添加噪声的场景下, 考虑用户数量
             epsilon_spent_this_round = (math.sqrt(valid_user_count) * math.sqrt(2 * math.log(1.25 / self.delta))) / self.sigma
             # Update epsilon consumption with actual spent amount
             self.consumed_epsilon += epsilon_spent_this_round
@@ -340,10 +340,10 @@ class Silo:
         参数:
             model (torch.nn.Module): 要训练的模型 
             train_loader (torch.utils.data.DataLoader): 训练数据的数据加载器 
-            optimizer (torch.optim.Optimizer, 可选): 使用的优化器 如果为None，
+            optimizer (torch.optim.Optimizer, 可选): 使用的优化器 如果为None, 
                                                       则使用`self.optimizer`(如果它与
                                                       传入的模型兼容) 默认为None 
-            current_iter (int, 可选): 当前联邦学习迭代，
+            current_iter (int, 可选): 当前联邦学习迭代, 
                                        用于周期循环内的日志记录(当前已注释) 
                                        默认为0 
 

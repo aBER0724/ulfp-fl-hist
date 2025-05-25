@@ -13,7 +13,7 @@ class Dataset:
             user_alpha: 用户数据分布参数
             silo_alpha: 机构数据分布参数
             seed: 随机种子
-            mode: 分布模式，'uniform'(均匀)、'zipf'或'dirichlet'
+            mode: 分布模式, 'uniform'(均匀)、'zipf'或'dirichlet'
             max_samples: 最大样本数
         """
         self.seed = seed
@@ -44,7 +44,7 @@ class Dataset:
     
     def divide_dataset(self):
         """
-        将整个训练数据分配到用户，然后再分配到机构 
+        将整个训练数据分配到用户, 然后再分配到机构 
         """
         n_data = len(self.dataset_train)
         
@@ -63,7 +63,7 @@ class Dataset:
         将用户数据按均匀、Zipf或Dirichlet分布分配 
         
         参数:
-            n_data: 要使用的样本数 如果为None，则使用所有样本 
+            n_data: 要使用的样本数 如果为None, 则使用所有样本 
         """
         np.random.seed(self.seed)
         
@@ -182,7 +182,7 @@ class Dataset:
         """
         获取用户数据的直方图 
         返回:
-            一个列表，其中索引对应user_id，值是该用户的样本数量
+            一个列表, 其中索引对应user_id, 值是该用户的样本数量
         """
         user_histogram = [0] * self.n_users
         
@@ -199,7 +199,7 @@ class Dataset:
             silo_id: 机构的ID 
 
         返回:
-            一个字典，其中键是user_ids，值是属于该用户在指定机构内的数据索引列表 
+            一个字典, 其中键是user_ids, 值是属于该用户在指定机构内的数据索引列表 
             示例: {user_0: [idx1, idx2, ...], user_1: [idx_a, idx_b, ...]}
         """
         return self.silos_indices_of_data[silo_id]

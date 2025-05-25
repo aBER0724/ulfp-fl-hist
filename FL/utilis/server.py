@@ -8,11 +8,11 @@ class Server:
         初始化服务器实例 
 
         参数:
-            dataset (FL.utilis.dataset.Dataset): 数据集对象的引用，
+            dataset (FL.utilis.dataset.Dataset): 数据集对象的引用, 
                                                 用于访问总用户数等信息 
             global_model (torch.nn.Module): 初始全局模型 
             global_learning_rate (float): 服务器端应用于聚合更新的学习率 
-            train_mode (str): 训练模式，如'uldp'，会影响更新的平均方式 
+            train_mode (str): 训练模式, 如'uldp', 会影响更新的平均方式 
         """
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = copy.deepcopy(global_model)
@@ -39,7 +39,7 @@ class Server:
         参数:
             channel_server_to_silos (list[torch.nn.Module]): 包含每个机构在本地训练后
                                                             的模型实例列表 
-                                                            (注意: 参数名可能有误导，
+                                                            (注意: 参数名可能有误导, 
                                                             实际是从机构到服务器的模型) 
         """
         self.silos_model_list = channel_server_to_silos
@@ -56,12 +56,8 @@ class Server:
                                                       (注意: 参数名可能有误导) 
 
         返回:
-            list[int]: 聚合的用户直方图，其中每个元素是该用户在所有机构中的总计数 
+            list[int]: 聚合的用户直方图, 其中每个元素是该用户在所有机构中的总计数 
         """
-        if not channel_server_to_silos or not isinstance(channel_server_to_silos[0], list):
-            # 处理空或格式错误的输入
-            return []
-            
         n_user = len(channel_server_to_silos[0])
         sumed_user_histogram = [0 for _ in range(n_user)]
 
@@ -75,11 +71,11 @@ class Server:
         聚合接收到的机构模型参数并更新全局模型 
 
         聚合策略基于联邦平均(FedAvg) 
-        具体来说，它计算每个机构的*更新*(本地模型-全局模型)的平均值，
-        并将这个平均更新应用到当前全局模型，
+        具体来说, 它计算每个机构的*更新*(本地模型-全局模型)的平均值, 
+        并将这个平均更新应用到当前全局模型, 
         按`global_learning_rate`缩放 
 
-        如果`self.train_mode`是'uldp'，则平均按
+        如果`self.train_mode`是'uldp', 则平均按
         用户总数和机构数归一化 否则仅按机构数归一化 
         """
         global_params = self.model.state_dict()
