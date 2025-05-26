@@ -14,5 +14,6 @@ record.zip
 
 
 .cursor/rules/*
+.spec-workflow/*
 
 .DS_Store
