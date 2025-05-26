@@ -5,41 +5,30 @@ from model.CNN import CNNMnist
 import torch
 import matplotlib.pyplot as plt
 import numpy as np
-# import logging # Commented out as we are switching to print
 import os
 from FL.utilis.hist_noise import histogram_dp, Mean_NoiseFirst, Median_NoiseFirst, Mean_StructureFirst, Median_StructureFirst
 
-# logging.basicConfig(level=logging.INFO, format='[%(asctime)s] - %(message)s', datefmt='%Y-%m-%d %H:%M')
-# logger = logging.getLogger(__name__) # Switch to print for debugging parameter output
-
 def plot_comparison_results(original_hist, hist_variants_data, output_dir, plot_file_basename, main_plot_title):
     """
-    Generates and saves a series of comparison plots for different histogram variants
-    against an original histogram.
+    生成并保存一系列比较图, 用于比较不同直方图变体与原始直方图.
 
-    This function creates three types of plots:
-    1.  An overall side-by-side bar chart comparing the original histogram with all variants.
-    2.  Detailed subplots showing:
-        a. Original vs. each non-Gaussian variant.
-        b. Original vs. a Gaussian DP variant (if provided).
-        c. A combined bar chart of differences (variant - original) for all variants.
-    3.  Bar charts for Mean Absolute Error (MAE) and Mean Squared Error (MSE) for each variant
-        compared to the original.
+    此函数创建三种类型的图：
+    1. 一个总体的并排条形图, 比较原始直方图与所有变体.  
+    2. 详细的子图, 显示：
+        1. 原始直方图与每个非高斯变体.    
+        2. 原始直方图与高斯差分隐私 (DP) 变体（如果提供）.    
+        3. 所有变体的差异（变体 - 原始）的组合条形图.    
+    3. 每个变体与原始直方图相比的平均绝对误差 (MAE) 和均方误差 (MSE) 的条形图.  
 
-    Args:
-        original_hist (np.ndarray): A 1D NumPy array representing the original histogram counts.
-        hist_variants_data (list[tuple]): A list of tuples, where each tuple contains:
-            - label (str): The label/name for the histogram variant (e.g., "NF Mean ε=0.5 k=10").
-            - histogram_array (np.ndarray): The histogram data for the variant.
-            - color_str (str): A string representing the color for this variant's plots.
-        output_dir (str): The directory path where the generated plot images will be saved.
-                          The directory will be created if it doesn't exist.
-        plot_file_basename (str): A base name used for the output plot files.
-                                  For example, if "nf_eps_0.5", files like
-                                  "nf_eps_0.5_overall.png", "nf_eps_0.5_detailed.png",
-                                  and "nf_eps_0.5_error_metrics.png" will be generated.
-        main_plot_title (str): A general title prefix used for the set of comparison plots
-                               (e.g., "NoiseFirstDP Epsilon Variation").
+    参数:
+        - original_hist (np.ndarray): 表示原始直方图计数的一维 NumPy 数组.  
+        - hist_variants_data (list[tuple]): 元组列表, 其中每个元组包含：
+            - label (str): 直方图变体的标签/名称 
+            - histogram_array (np.ndarray): 变体的直方图数据
+            - color_str (str): 表示此变体绘图颜色的字符串
+        - output_dir (str): 生成的绘图图像将保存到的目录路径. 如果目录不存在, 将创建该目录.  
+        - plot_file_basename (str): 用于输出绘图文件的基本名称
+        - main_plot_title (str): 用于比较图集的通用标题前缀
     """
     os.makedirs(output_dir, exist_ok=True)
     indices = np.arange(len(original_hist))
@@ -49,7 +38,7 @@ def plot_comparison_results(original_hist, hist_variants_data, output_dir, plot_
         print(f"WARNING: No variants provided for plotting: {plot_file_basename}. Skipping plots.")
         return
 
-    # --- Plot 1: Side-by-side comparison of all variants ---
+    # --- 图 1：所有变体的并排比较 ---
     plt.figure(figsize=(max(12, 3 * (num_variants + 1)), 8)) 
     
     total_bars_width = 0.8 
@@ -71,11 +60,11 @@ def plot_comparison_results(original_hist, hist_variants_data, output_dir, plot_
     plt.savefig(f'{output_dir}/{plot_file_basename}_overall.png', dpi=300)
     plt.close()
 
-    # --- Plot 2: Detailed subplots (Original vs each variant) & Differences ---
+    # --- 图 2：详细子图（原始图与每个变体）和差异 ---
     
     gaussian_variant_info = None
     other_variants_info = []
-    for item_tuple in hist_variants_data: # item_tuple is (label, data, color)
+    for item_tuple in hist_variants_data: # item_tuple 是 (label, data, color)
         if item_tuple[0].startswith("GaussianDP"):
             gaussian_variant_info = item_tuple
         else:
@@ -145,7 +134,7 @@ def plot_comparison_results(original_hist, hist_variants_data, output_dir, plot_
     plt.savefig(f'{output_dir}/{plot_file_basename}_detailed.png', dpi=300)
     plt.close()
 
-    # --- Plot 3: Error Metrics (MAE & MSE) ---
+    # --- 图 3：误差度量（MAE 和 MSE）---
     fig_metrics, (ax1, ax2) = plt.subplots(1, 2, figsize=(max(15, 2.5 * num_variants), 8)) 
     
     method_labels = [item[0] for item in hist_variants_data]
@@ -180,28 +169,28 @@ def plot_comparison_results(original_hist, hist_variants_data, output_dir, plot_
 
 if __name__ == "__main__":
     dataset_name = "mnist"
-    max_samples = 3000 
+    max_samples = 3000 # 最大样本数
     batch_size = 64
-    local_epoch = 10 
+    local_epoch = 10 # 本地训练轮数
     distribute_mode = "zipf"
-    is_secure = "ndp" 
+    is_secure = "ndp" # 是否安全
     learning_rate = 0.1
-    n_silos = 5 
-    n_users = 100 
+    n_silos = 5 # 数据机构数量
+    n_users = 100 # 用户数量
     seed = 1
-    q_for_batch_size = 0.1
-    is_histogram_secure = "ndp" 
-    delta_fedavg = 1e-5 
+    q_for_batch_size = 0.1 # 用于批量大小的q值
+    is_histogram_secure = "ndp" # 直方图是否安全
+    delta_fedavg = 1e-5 # FedAvg的delta值
     
-    base_sigma_gaussian = 5.0 
+    base_sigma_gaussian = 5.0 # 高斯噪声的基础sigma值
 
-    epsilons_to_test = [0.1, 0.5, 1.0, 5.0]
-    Fs_to_test = [1.0, 10.0, 20.0]
-    k_divisors_to_test = [15, 10, 5] 
+    epsilons_to_test = [0.1, 0.5, 1.0, 5.0] # 要测试的epsilon值
+    Fs_to_test = [1.0, 10.0, 20.0] # 要测试的F值
+    k_divisors_to_test = [15, 10, 5] # 要测试的k除数
 
-    default_epsilon = 1.0
-    default_F = 10.0
-    default_k_divisor = 10
+    default_epsilon = 1.0 # 默认epsilon值
+    default_F = 10.0 # 默认F值
+    default_k_divisor = 10 # 默认k除数
 
     model_cnn = CNNMnist()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -240,10 +229,10 @@ if __name__ == "__main__":
     baseline_gaussian_hist = histogram_dp(sample_histogram, base_sigma_gaussian)
     gaussian_dp_variant_tuple = (f'GaussianDP σ={base_sigma_gaussian}', baseline_gaussian_hist, 'gray')
 
-    # --- NoiseFirstDP: Epsilon Variation ---
+    # --- NoiseFirstDP：Epsilon 变动 ---
     print("INFO: --- Running NoiseFirstDP Epsilon Variation Tests ---")
     nf_eps_output_dir = os.path.join(main_output_dir, "NoiseFirst_Epsilon_Var")
-    current_variants_nf_eps = [gaussian_dp_variant_tuple] 
+    current_variants_nf_eps = [gaussian_dp_variant_tuple] # 当前NoiseFirst Epsilon变体
     colors_nf = ['mediumpurple', 'darkorchid', 'blueviolet', 'indigo']
     for i, eps in enumerate(epsilons_to_test):
         try:
@@ -258,7 +247,7 @@ if __name__ == "__main__":
             print(f"ERROR: Error NF ε={eps}: {e}")
     plot_comparison_results(sample_histogram, current_variants_nf_eps, nf_eps_output_dir, "nf_epsilon_comp", "NoiseFirstDP Epsilon Variation")
 
-    # --- StructureFirstDP: Epsilon Variation ---
+    # --- StructureFirstDP：Epsilon 变动 ---
     print("INFO: --- Running StructureFirstDP Epsilon Variation Tests ---")
     sf_eps_output_dir = os.path.join(main_output_dir, "StructureFirst_Epsilon_Var")
     k_for_sf_eps_var = max(1, int(len(sample_histogram) / default_k_divisor))
@@ -266,17 +255,17 @@ if __name__ == "__main__":
     colors_sf_eps = ['lightcoral', 'red', 'darkred', 'maroon']
     for i, eps in enumerate(epsilons_to_test):
         try:
-            # print(f"INFO: Running SF (Epsilon Var) with: ε={eps}, method='mean', k={k_for_sf_eps_var}, F={default_F}")
+            # print(f"信息：运行 SF (Epsilon Var), 参数：ε={eps}, method='mean', k={k_for_sf_eps_var}, F={default_F}")
             sf_mean_hist = Mean_StructureFirst(sample_histogram, eps, k_for_sf_eps_var, default_F)
             current_variants_sf_eps.append((f'SF Mean ε={eps} F={default_F} k={k_for_sf_eps_var}', sf_mean_hist, colors_sf_eps[i % len(colors_sf_eps)]))
-            # print(f"INFO: Running SF (Epsilon Var) with: ε={eps}, method='median', k={k_for_sf_eps_var}, F={default_F}")
+            # print(f"信息：运行 SF (Epsilon Var), 参数：ε={eps}, method='median', k={k_for_sf_eps_var}, F={default_F}")
             sf_median_hist = Median_StructureFirst(sample_histogram, eps, k_for_sf_eps_var)
             current_variants_sf_eps.append((f'SF Median ε={eps} k={k_for_sf_eps_var}', sf_median_hist, plt.cm.plasma(i / len(epsilons_to_test) * 0.8 + 0.1)))
         except Exception as e:
             print(f"ERROR: Error SF ε={eps} (F={default_F}, k={k_for_sf_eps_var}): {e}")
     plot_comparison_results(sample_histogram, current_variants_sf_eps, sf_eps_output_dir, "sf_epsilon_comp", f"SFDP Epsilon Var (F={default_F}, k_div={default_k_divisor})")
 
-    # --- StructureFirstDP: F Variation ---
+    # --- StructureFirstDP：F 变动 ---
     print("INFO: --- Running StructureFirstDP F Variation Tests ---")
     sf_F_output_dir = os.path.join(main_output_dir, "StructureFirst_F_Var")
     k_for_sf_F_var = max(1, int(len(sample_histogram) / default_k_divisor))
@@ -284,17 +273,17 @@ if __name__ == "__main__":
     colors_sf_F = ['sandybrown', 'chocolate', 'saddlebrown']
     for i, F_val in enumerate(Fs_to_test):
         try:
-            # print(f"INFO: Running SF (F Var) with: F={F_val}, method='mean', k={k_for_sf_F_var}, ε={default_epsilon}")
+            # print(f"信息：运行 SF (F Var), 参数：F={F_val}, method='mean', k={k_for_sf_F_var}, ε={default_epsilon}")
             sf_mean_hist = Mean_StructureFirst(sample_histogram, default_epsilon, k_for_sf_F_var, F_val)
             current_variants_sf_F.append((f'SF Mean F={F_val} ε={default_epsilon} k={k_for_sf_F_var}', sf_mean_hist, colors_sf_F[i % len(colors_sf_F)]))
-            # print(f"INFO: Running SF (F Var) with: F={F_val}, method='median', k={k_for_sf_F_var}, ε={default_epsilon}")
+            # print(f"信息：运行 SF (F Var), 参数：F={F_val}, method='median', k={k_for_sf_F_var}, ε={default_epsilon}")
             sf_median_hist = Median_StructureFirst(sample_histogram, default_epsilon, k_for_sf_F_var)
             current_variants_sf_F.append((f'SF Median F={F_val} ε={default_epsilon} k={k_for_sf_F_var}', sf_median_hist, plt.cm.YlOrBr(i / len(Fs_to_test) * 0.7 + 0.3)))
         except Exception as e:
             print(f"ERROR: Error SF F={F_val} (ε={default_epsilon}, k={k_for_sf_F_var}): {e}")
     plot_comparison_results(sample_histogram, current_variants_sf_F, sf_F_output_dir, "sf_F_comp", f"SFDP F Variation (ε={default_epsilon}, k_div={default_k_divisor})")
 
-    # --- StructureFirstDP: k Variation ---
+    # --- StructureFirstDP：k 变动 ---
     print("INFO: --- Running StructureFirstDP k Variation Tests ---")
     sf_k_output_dir = os.path.join(main_output_dir, "StructureFirst_k_Var")
     current_variants_sf_k = [gaussian_dp_variant_tuple]
@@ -316,7 +305,7 @@ if __name__ == "__main__":
             print(f"ERROR: Error SF k_div={k_div} (ε={default_epsilon}, F={default_F}): {e}")
     plot_comparison_results(sample_histogram, current_variants_sf_k, sf_k_output_dir, "sf_k_comp", f"SFDP k Variation (ε={default_epsilon}, F={default_F})")
     
-    # --- Final Overall Comparison ---
+    # --- 最终总体比较 ---
     print("INFO: --- Generating Final Overall Comparison ---")
     overall_comp_output_dir = os.path.join(main_output_dir, "Overall_Best_Comparison")
     
@@ -335,10 +324,10 @@ if __name__ == "__main__":
 
     k_for_overall_sf = max(1, int(len(sample_histogram) / default_k_divisor))
     try:
-        # print(f"INFO: Running SF (Overall Comparison) with: default params, method='mean'")
+        # print(f"信息：运行 SF (总体比较), 参数：默认参数, method='mean'")
         sf_mean_default_params = Mean_StructureFirst(sample_histogram, default_epsilon, k_for_overall_sf, default_F)
         all_representative_variants.append((f'SF Mean (default params: ε={default_epsilon}, F={default_F}, k_div={default_k_divisor}, k={k_for_overall_sf})', sf_mean_default_params, 'red'))
-        # print(f"INFO: Running SF (Overall Comparison) with: default params, method='median'")
+        # print(f"信息：运行 SF (总体比较), 参数：默认参数, method='median'")
         sf_median_default_params = Median_StructureFirst(sample_histogram, default_epsilon, k_for_overall_sf)
         all_representative_variants.append((f'SF Median (default params: ε={default_epsilon}, k_div={default_k_divisor}, k={k_for_overall_sf})', sf_median_default_params, 'darkred'))
     except Exception as e:

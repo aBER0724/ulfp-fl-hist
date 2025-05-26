@@ -14,49 +14,40 @@ logger = logging.getLogger(__name__)
 
 def analyze_distributions(data_indices_of_user, data_indices_of_silo, dataset_train, silo_datasets, mode, dataset_object=None):
     """
-    Analyzes and prepares data for visualizing the distribution of data samples
-    across users and silos, as well as label distributions within silos.
+    分析并准备数据, 用于可视化跨用户和数据机构的数据样本分布, 以及数据机构内的标签分布. 
 
-    Args:
-        data_indices_of_user (dict): A dictionary mapping user IDs to a list of
-                                     data indices assigned to that user.
-                                     Example: {user_id: [idx1, idx2, ...]}
-        data_indices_of_silo (dict): A nested dictionary mapping silo IDs to user IDs,
-                                     and then to a list of data indices.
-                                     Example: {silo_id: {user_id: [idx_a, idx_b, ...]}}
-                                     Alternatively, if `dataset_object` is provided, this might
-                                     not be directly used if `get_user_histogram` is preferred.
-        dataset_train (torch.utils.data.Dataset): The full training dataset, used to get labels.
-        silo_datasets (dict): A dictionary mapping silo IDs to their respective
-                              torch.utils.data.Subset datasets.
-                              Example: {silo_id: <Subset object>}
-        mode (str): A string identifier for the data distribution mode (e.g., 'zipf', 'uniform'),
-                    used for naming output files.
-        dataset_object (FL.utilis.dataset.Dataset, optional): An instance of the Dataset class.
-                               If provided, its `get_user_histogram` method is used to
-                               determine user distribution per silo, which can be more direct
-                               than recalculating from `data_indices_of_silo`.
+    参数:
+        - data_indices_of_user (dict): 将用户 ID 映射到分配给该用户的数据索引列表. 
+                                     示例: {user_id: [idx1, idx2, ...]}
+        - data_indices_of_silo (dict): 将数据机构 ID 映射到用户 ID, 然后再映射到数据索引列表. 
+                                     示例: {silo_id: {user_id: [idx_a, idx_b, ...]}}
+                                     或者, 如果提供了 `dataset_object`, 如果首选 `get_user_histogram`, 则可能不直接使用此参数. 
+        - dataset_train (torch.utils.data.Dataset): 完整的训练数据集, 用于获取标签. 
+        - silo_datasets (dict): 将数据机构 ID 映射到其各自的
+                              torch.utils.data.Subset 数据集. 
+                              示例: {silo_id: <Subset object>}
+        - mode (str): 数据分布模式的字符串标识符. 
+        - dataset_object (FL.utilis.dataset.Dataset, optional): Dataset 类的实例 
 
-    Returns:
-        PlotFunctions: An instance of the inner PlotFunctions class, which contains methods
-                       to generate and save the distribution plots.
+    返回:
+        PlotFunctions: 内部 PlotFunctions 类的实例, 其中包含生成和保存分布图的方法. 
     """
 
-    # Create a dictionary mapping data indices to user IDs
+    # 创建一个将数据索引映射到用户 ID 的字典
     data_to_user = {}
     for user_id, indices in data_indices_of_user.items():
         for idx in indices:
             data_to_user[idx] = user_id
 
-    # 1. Count the user distribution for each silo
+    # 1. 计算每个数据机构的用户分布
     silo_user_distributions = defaultdict(dict)
     
     if dataset_object is not None:
-        # Use the new get_user_histogram method if dataset_object is provided
+        # 如果提供了 dataset_object, 则使用新的 get_user_histogram 方法
         for silo_id in silo_datasets.keys():
             silo_user_distributions[silo_id] = dataset_object.get_user_histogram(silo_id)
     else:
-        # Fall back to manual calculation if dataset_object is not provided
+        # 如果未提供 dataset_object, 则回退到手动计算
         for silo_id, silo_indices in data_indices_of_silo.items():
             user_counts = defaultdict(int)
             for idx in silo_indices:
@@ -64,7 +55,7 @@ def analyze_distributions(data_indices_of_user, data_indices_of_silo, dataset_tr
                 user_counts[user_id] += 1
             silo_user_distributions[silo_id] = user_counts
 
-    # 2. Label distribution
+    # 2. 标签分布
     silo_label_distributions = {}
     for silo_id, dataset in silo_datasets.items():
         labels = [dataset_train.targets[i].item() for i in dataset.indices]
@@ -78,44 +69,43 @@ def analyze_distributions(data_indices_of_user, data_indices_of_silo, dataset_tr
         @staticmethod
         def plot_silos_distribution():
             """
-            Generates and saves a plot showing the top N user distributions (sample counts)
-            and label distributions for each silo.
+            生成并保存一个图表, 显示每个数据机构的前 N 个用户分布（样本计数）和标签分布. 
 
-            The plot will display multiple subplots, with each silo having two:
-            one for user sample counts and one for label counts.
+            该图表将显示多个子图, 每个数据机构有两个子图：
+            一个用于用户样本计数, 一个用于标签计数. 
             """
             n_silos = len(silo_datasets)
-            silos_per_row = 4  # Increased from 2 to 4 silos per row
+            silos_per_row = 4  # 每行的数据机构数量从 2 增加到 4
             rows = (n_silos + silos_per_row - 1) // silos_per_row
-            plt.figure(figsize=(24, 6 * rows))  # Adjusted height per row
+            plt.figure(figsize=(24, 6 * rows))  # 调整了每行的高度
 
             for silo_idx, silo_id in enumerate(silo_datasets.keys()):
                 row = silo_idx // silos_per_row
                 col_base = (silo_idx % silos_per_row) * 2
 
-                # User distribution subplot
+                # 用户分布子图
                 plt.subplot(rows, silos_per_row * 2, row * silos_per_row * 2 + col_base + 1)
                 user_counts = silo_user_distributions[silo_id]
                 
-                # Handle the case where user_counts could be a list or dictionary
+                # 处理 user_counts 可能是列表或字典的情况
                 if isinstance(user_counts, dict):
                     top_users = sorted(user_counts.items(),
                                 key=lambda x: x[1], reverse=True)[:10]
                     users = [f'User-{u[0]}' for u in top_users]
                     counts = [u[1] for u in top_users]
                 elif isinstance(user_counts, list):
-                    # If it's a list, assume it's already sorted or format it appropriately
+                    # 如果是列表, 则假定它已排序或已适当格式化
                     top_users = user_counts[:10]
                     if len(top_users) > 0 and isinstance(top_users[0], tuple):
-                        # If it's a list of tuples (user_id, count)
+                        # 如果是元组列表 (user_id, count)
                         users = [f'User-{u[0]}' for u in top_users]
                         counts = [u[1] for u in top_users]
                     else:
-                        # If it's just a list of counts, create generic labels
+                        # 如果只是计数列表, 则创建通用标签
                         users = [f'User-{i}' for i in range(len(top_users))]
                         counts = top_users
                 else:
-                    # Fallback for unexpected type
+                    # 意外类型的回退处理
                     users = []
                     counts = []
                 
@@ -128,7 +118,7 @@ def analyze_distributions(data_indices_of_user, data_indices_of_silo, dataset_tr
                 plt.xticks(rotation=45, fontsize=10)
                 plt.yticks(fontsize=10)
 
-                # Label distribution subplot
+                # 标签分布子图
                 plt.subplot(rows, silos_per_row * 2, row * silos_per_row * 2 + col_base + 2)
                 label_dist = silo_label_distributions[silo_id]
                 labels = sorted(label_dist.keys())
@@ -150,24 +140,23 @@ def analyze_distributions(data_indices_of_user, data_indices_of_silo, dataset_tr
         @staticmethod
         def plot_user_distribution_heatmap():
             """
-            Generates and saves a heatmap visualizing the percentage of each user's data
-            (or sample count contribution) within each silo.
+            生成并保存一个热力图, 可视化每个用户的数据在每个数据机构内的百分比（或样本计数贡献）. 
 
-            The heatmap shows silos on the y-axis and users on the x-axis.
-            Cell values represent the proportion of a user's samples within a specific silo.
+            热力图在 y 轴上显示数据机构, 在 x 轴上显示用户. 
+            单元格值表示用户样本在特定数据机构中的比例. 
             """
             # 大幅增加图形尺寸以适应可能的大量用户
             plt.figure(figsize=(60, 20))  # 显著增加宽度以容纳所有用户标签
             user_matrix = []
             silo_ids = sorted(silo_user_distributions.keys())
             
-            # Get all unique users while handling both dict and list types
+            # 获取所有唯一用户, 同时处理字典和列表类型
             all_users = set()
             for dist in silo_user_distributions.values():
                 if isinstance(dist, dict):
                     all_users.update(dist.keys())
                 elif isinstance(dist, list):
-                    # If it's a list, extract user IDs with non-zero samples
+                    # 如果是列表, 则提取具有非零样本的用户 ID
                     for user_id, count in enumerate(dist):
                         if count > 0:
                             all_users.add(user_id)
@@ -177,18 +166,18 @@ def analyze_distributions(data_indices_of_user, data_indices_of_silo, dataset_tr
             
             all_users = sorted(all_users)
             
-            # If no users found, log a warning and return
+            # 如果未找到用户, 则记录警告并返回
             if not all_users:
                 logger.warning("No user data found to generate heatmap. Skipping heatmap generation.")
-                plt.close() # Close the figure if it was created
+                plt.close() # 如果已创建图形, 则关闭它
                 return
             
             for silo_id in silo_ids:
                 dist = silo_user_distributions[silo_id]
                 
-                # Convert to dict format if it's a list
+                # 如果是列表, 则转换为字典格式
                 if isinstance(dist, list):
-                    # Convert list to dict with index as key
+                    # 将列表转换为以索引为键的字典
                     dist_dict = {user_id: dist[user_id] if user_id < len(dist) else 0 
                                for user_id in all_users}
                 else:
@@ -198,22 +187,22 @@ def analyze_distributions(data_indices_of_user, data_indices_of_silo, dataset_tr
                 if total_samples > 0:
                     row = [dist_dict.get(user_id, 0) / total_samples * 100 for user_id in all_users]
                 else:
-                    row = [0.0 for _ in all_users]  # Use 0.0 for no samples
+                    row = [0.0 for _ in all_users]  # 无样本时使用 0.0
                 
                 user_matrix.append(row)
             
-            # If no matrix data, create a dummy row
+            # 如果没有矩阵数据, 则创建一个虚拟行
             if not user_matrix:
-                user_matrix = [[0.0 for _ in all_users]] # Use 0.0 for dummy matrix
+                user_matrix = [[0.0 for _ in all_users]] # 虚拟矩阵使用 0.0
                 
             # 使用更简短的标签格式
             df_users = pd.DataFrame(user_matrix, 
                                 index=[f'Silo-{s}' for s in silo_ids] if silo_ids else ['S-0'],
                                 columns=[f'User-{i+1}' for i, u in enumerate(all_users)])
             
-            # Ensure there's some data for plotting
+            # 确保有一些数据用于绘图
             if df_users.empty:
-                df_users = pd.DataFrame([[0.0]], index=['Silo-0'], columns=['User-0']) # Use 0.0 for dummy dataframe
+                df_users = pd.DataFrame([[0.0]], index=['Silo-0'], columns=['User-0']) # 虚拟数据帧使用 0.0
             
             plt.subplot(1, 1, 1)
             
@@ -222,7 +211,7 @@ def analyze_distributions(data_indices_of_user, data_indices_of_silo, dataset_tr
             try:
                 sns.heatmap(df_users, 
                         annot=False,  # 由于用户数量可能很多, 移除数值标注
-                        fmt='.1f',   # Keep one decimal place
+                        fmt='.1f',   # 保留一位小数
                         cmap='Reds',
                         cbar_kws={'label': 'Percentage (%)'})
                 
@@ -232,9 +221,9 @@ def analyze_distributions(data_indices_of_user, data_indices_of_silo, dataset_tr
                 
                 # 调整标签以适应大量用户
                 plt.xticks(rotation=90, ha='center', fontsize=8)  # 减小字体, 垂直放置标签
-                plt.yticks(fontsize=14)  # 调整y轴标签大小
+                plt.yticks(fontsize=14)  # 调整 y 轴标签大小
                 
-                # 先进行tight_layout, 然后再调整底部空间
+                # 先进行 tight_layout, 然后再调整底部空间
                 plt.tight_layout()
                 # 确保图表留出足够空间给x轴标签
                 plt.subplots_adjust(bottom=0.4)
@@ -247,8 +236,8 @@ def analyze_distributions(data_indices_of_user, data_indices_of_silo, dataset_tr
 
         def __call__(self):
             """
-            Executes all available plotting functions in the PlotFunctions class.
-            Currently, this calls `plot_silos_distribution` and `plot_user_distribution_heatmap`.
+            执行 PlotFunctions 类中所有可用的绘图函数. 
+            当前, 这将调用 `plot_silos_distribution` 和 `plot_user_distribution_heatmap`. 
             """
             self.plot_silos_distribution()
             self.plot_user_distribution_heatmap()
@@ -257,25 +246,24 @@ def analyze_distributions(data_indices_of_user, data_indices_of_silo, dataset_tr
 
 def print_info_detail_of_silo(dataset_object, silo_loaders, silo_datasets):
     """
-    Logs detailed information about the data distribution across silos and users.
+    记录有关跨数据机构和用户的数据分布的详细信息. 
 
-    This includes overall dataset parameters, per-silo sample counts, batch information,
-    top users within each silo, total unique users per silo, and label distributions per silo.
+    这包括总体数据集参数、每个数据机构的样本计数、批处理信息、
+    每个数据机构中的主要用户、每个数据机构的总唯一用户数以及每个数据机构的标签分布. 
 
-    Args:
-        dataset_object (FL.utilis.dataset.Dataset): The main Dataset object containing
-                                                     all configuration and distribution information.
-        silo_loaders (dict): A dictionary mapping silo IDs to their PyTorch DataLoaders.
-                             Used here to get batch information.
-        silo_datasets (dict): A dictionary mapping silo IDs to their torch.utils.data.Subset
-                              datasets. Used for label distribution analysis.
+    参数:
+        dataset_object (FL.utilis.dataset.Dataset): 包含所有配置和分布信息的主要 Dataset 对象. 
+        silo_loaders (dict): 将数据机构 ID 映射到其 PyTorch DataLoader 的字典. 
+                             此处用于获取批处理信息. 
+        silo_datasets (dict): 将数据机构 ID 映射到其 torch.utils.data.Subset 数据集的字典. 
+                              用于标签分布分析. 
     """
     logger.info(f"MODE: {dataset_object.distribute_mode}")
     logger.info(f"Users Number: {dataset_object.n_users}")
     logger.info(f"Silos Number: {dataset_object.n_silos}")
     logger.info(f"Total Data Number: {len(dataset_object.get_whole_train_data())}")
     
-    # Calculate the actual number of samples used
+    # 计算实际使用的样本数量
     actual_samples = sum(len(indices) for indices in dataset_object.data_indices_of_user.values())
     logger.info(f"Actual Samples Used: {actual_samples}")
     
@@ -285,30 +273,30 @@ def print_info_detail_of_silo(dataset_object, silo_loaders, silo_datasets):
     logger.info(f"Seed: {dataset_object.seed}")
     logger.info('------------------------------------------')
 
-    # Verify data distribution
+    # 验证数据分布
     for silo_id, loader in silo_loaders.items():
         total = len(loader.dataset)
         logger.info(f"Silo-{silo_id}:")
         logger.info(f"   Total samples: {total}")
         logger.info(f"   Batch number: {len(loader)}")
-        # logger.info(f"   Example data shape: {next(iter(loader))[0].shape}")  # [Batch_size, Channels, Height, Width]
+        # logger.info(f"   示例数据形状: {next(iter(loader))[0].shape}")  # [批大小, 通道数, 高度, 宽度]
         
-        # logger.info user histogram for this silo
+        # 记录此数据机构的用户直方图
         user_histogram = dataset_object.get_user_histogram(silo_id)
-        # Get top 5 users by data count
+        # 按数据计数获取前 5 位用户
         if isinstance(user_histogram, dict):
             top_users = sorted(user_histogram.items(), key=lambda x: x[1], reverse=True)[:5]
         elif isinstance(user_histogram, list):
-            # If it's a list, assume it represents user counts
+            # 如果是列表, 则假定它表示用户计数
             if user_histogram and isinstance(user_histogram[0], tuple):
-                # If it's a list of tuples (user_id, count)
+                # 如果是元组列表 (user_id, count)
                 top_users = sorted(user_histogram, key=lambda x: x[1], reverse=True)[:5]
             else:
-                # If it's just a list of counts, create generic user indices
+                # 如果只是计数列表, 则创建通用用户索引
                 top_users = [(i, count) for i, count in enumerate(user_histogram)]
                 top_users = sorted(top_users, key=lambda x: x[1], reverse=True)[:5]
         else:
-            # Fallback for unexpected type
+            # 意外类型的回退处理
             logger.warning(f"Unexpected user_histogram type: {type(user_histogram)}")
             top_users = []
             
@@ -316,7 +304,7 @@ def print_info_detail_of_silo(dataset_object, silo_loaders, silo_datasets):
         for user_id, count in top_users:
             logger.info(f"      User-{user_id}: {count} samples")
         
-        # Calculate total unique users based on the type of user_histogram
+        # 根据 user_histogram 的类型计算总唯一用户数
         if isinstance(user_histogram, dict):
             total_users = len(user_histogram)
         elif isinstance(user_histogram, list):
@@ -363,14 +351,14 @@ if __name__ == "__main__":
     max_samples = args.max_samples
     plot_type = args.plot_type
     
-    # If a distribution mode is specified, only test that mode
+    # 如果指定了分布模式, 则仅测试该模式
     if args.distribute_mode:
         distribute_mode_list = [args.distribute_mode]
     else:
         distribute_mode_list = ['uniform', 'zipf', 'dirichlet']
 
     for distribute_mode in distribute_mode_list:
-        # Create a Dataset object with the desired parameters
+        # 使用所需参数创建 Dataset 对象
         dataset_object = Dataset(
             dataset_name=dataset_name,
             n_silos=n_silos,
@@ -382,33 +370,33 @@ if __name__ == "__main__":
             max_samples=max_samples
         )
         
-        # Get the dataset and distribution information
+        # 获取数据集和分布信息
         dataset_train = dataset_object.get_whole_train_data()
         dataset_test = dataset_object.get_whole_test_data()
         
-        # Create silo datasets using the get_silo_dataset method
+        # 使用 get_silo_dataset 方法创建数据机构数据集
         silo_datasets = {
             silo_id: dataset_object.get_silo_dataset(silo_id)
             for silo_id in range(n_silos)
         }
 
-        # Create data loaders for each silo
+        # 为每个数据机构创建数据加载器
         silo_loaders = {
             silo_id: DataLoader(dataset,
                                batch_size=batch_size,
-                               shuffle=True)  # Each silo independently shuffles
+                               shuffle=True)  # 每个数据机构独立打乱
             for silo_id, dataset in silo_datasets.items()
         }
 
-        # Get the user and silo indices from the dataset object
+        # 从数据集对象获取用户和数据机构索引
         data_indices_of_user = dataset_object.data_indices_of_user
         data_indices_of_silo = dataset_object.silos_indices_of_data
 
-        # Analyze and plot the distributions
+        # 分析并绘制分布图
         plot_functions = analyze_distributions(
             data_indices_of_user, data_indices_of_silo, dataset_train, silo_datasets, distribute_mode, dataset_object)
         
-        # Call the appropriate function based on the user's choice of plot type
+        # 根据用户选择的绘图类型调用相应的函数
         if plot_type == 'all':
             plot_functions()
         if plot_type == 'each_silo':
