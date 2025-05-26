@@ -1,7 +1,7 @@
 from torch import nn
 import torch.nn.functional as F
 
-# ULDP(用户级差分隐私)模型
+# MNIST
 class CNNMnist(nn.Module):
     def __init__(self):
         super(CNNMnist, self).__init__()

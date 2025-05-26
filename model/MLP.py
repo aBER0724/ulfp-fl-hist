@@ -1,5 +1,6 @@
 from torch import nn
 
+# CreditCard
 class PrivateFraudNet(nn.Module):
     def __init__(self, input_dim, hidden_dim, num_layers=4):
         super().__init__()

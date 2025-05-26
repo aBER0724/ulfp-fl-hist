@@ -8,11 +8,10 @@ class Server:
         初始化服务器实例 
 
         参数:
-            dataset (FL.utilis.dataset.Dataset): 数据集对象的引用, 
-                                                用于访问总用户数等信息 
+            dataset (FL.utilis.dataset.Dataset): 数据集对象
             global_model (torch.nn.Module): 初始全局模型 
-            global_learning_rate (float): 服务器端应用于聚合更新的学习率 
-            train_mode (str): 训练模式, 如'uldp', 会影响更新的平均方式 
+            global_learning_rate (float): 服务器端全局学习率 
+            train_mode (str): 训练模式, 如'uldp' 
         """
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = copy.deepcopy(global_model)
@@ -37,23 +36,18 @@ class Server:
         接收并存储从机构发送的模型列表 
 
         参数:
-            channel_server_to_silos (list[torch.nn.Module]): 包含每个机构在本地训练后
-                                                            的模型实例列表 
-                                                            (注意: 参数名可能有误导, 
-                                                            实际是从机构到服务器的模型) 
+            channel_server_to_silos (list[torch.nn.Module]): 包含每个机构在本地训练后的模型实例列表
         """
         self.silos_model_list = channel_server_to_silos
     
     def receive_silos_histogram(self, channel_server_to_silos):
         """
-        接收所有机构的用户直方图并聚合它们 
+        接收所有机构的用户直方图并聚合
 
-        它汇总了所有机构提供的直方图中每个用户的计数 
+        汇总了所有机构提供的直方图中每个用户的计数 
 
         参数:
-            channel_server_to_silos (list[list[int]]): 每个元素是一个机构的用户直方图
-                                                      (按用户ID索引的计数列表) 
-                                                      (注意: 参数名可能有误导) 
+            channel_server_to_silos (list[list[int]]): 每个元素是一个机构的用户直方图 (按用户ID索引的计数列表)
 
         返回:
             list[int]: 聚合的用户直方图, 其中每个元素是该用户在所有机构中的总计数 
@@ -70,13 +64,8 @@ class Server:
         """
         聚合接收到的机构模型参数并更新全局模型 
 
-        聚合策略基于联邦平均(FedAvg) 
-        具体来说, 它计算每个机构的*更新*(本地模型-全局模型)的平均值, 
-        并将这个平均更新应用到当前全局模型, 
-        按`global_learning_rate`缩放 
-
-        如果`self.train_mode`是'uldp', 则平均按
-        用户总数和机构数归一化 否则仅按机构数归一化 
+        FedAvg: (本地模型 - 全局模型)/|S|
+        ULDP: (本地模型 - 全局模型)/|U||S|
         """
         global_params = self.model.state_dict()
 
@@ -104,9 +93,9 @@ class Server:
                     total_update += update
                 
                 # 平均更新并应用学习率
-                if self.train_mode == 'uldp':  # 1/|U||S|
+                if self.train_mode == 'uldp':  # ULDP: 1/|U||S|
                     aggregated_params[key] += self.global_learning_rate * (total_update / (self.dataset.get_user_number() * len(self.silos_model_list)))
-                else:  # 1/|S|
+                else:  # FedAVG: 1/|S|
                     aggregated_params[key] += self.global_learning_rate * (total_update / len(self.silos_model_list))
 
         # 将聚合参数加载回全局模型

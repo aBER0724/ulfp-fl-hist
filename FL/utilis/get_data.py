@@ -14,39 +14,36 @@ logger = logging.getLogger(__name__)
 
 def get_data(dataset_name: str, seed: int = 1) -> tuple[torch.utils.data.Dataset, torch.utils.data.Dataset, np.ndarray]:
     """
-    Loads and preprocesses the specified dataset (MNIST or Credit Card Fraud).
+    加载并预处理指定的数据集(MNIST 或信用卡欺诈). 
 
-    For MNIST, it downloads the dataset, applies transformations (ToTensor, Normalize).
-    For Credit Card, it loads from a local CSV, performs train/test split, scales features,
-    and applies downsampling to the majority class in the training set.
+    对于 MNIST, 它会下载数据集, 应用转换(ToTensor、Normalize). 
+    对于信用卡, 它从本地 CSV 加载, 执行训练/测试拆分, 缩放特征, 
+    并对训练集中的多数类别进行下采样. 
 
-    Args:
-        dataset_name (str): The name of the dataset to load.
-                            Supported values: 'mnist', 'creditcard'.
-        seed (int, optional): Random seed used for reproducibility, particularly for
-                              train/test split and downsampling in the credit card dataset.
-                              Defaults to 1.
+    参数：
+        - dataset_name (str): 要加载的数据集的名称. 'mnist'、'creditcard'. 
+        - seed (int, optional): 用于可复现性的随机种子, 用于信用卡数据集中的训练/测试拆分和下采样. 默认为 1. 
 
-    Returns:
-        tuple[torch.utils.data.Dataset, torch.utils.data.Dataset, np.ndarray]:
-            - dataset_train: The training dataset (torch.utils.data.Dataset).
-            - dataset_test: The test dataset (torch.utils.data.Dataset).
-            - labels: A NumPy array of labels from the training dataset.
+    返回：
+        - tuple[torch.utils.data.Dataset, torch.utils.data.Dataset, np.ndarray]:
+            - dataset_train: 训练数据集 (torch.utils.data.Dataset). 
+            - dataset_test: 测试数据集 (torch.utils.data.Dataset). 
+            - labels: 来自训练数据集的标签的 NumPy 数组. 
 
-    Raises:
-        FileNotFoundError: If the credit card dataset CSV is not found at the expected path.
-        ValueError: If an unsupported `dataset_name` is provided.
+    引发：
+        FileNotFoundError: 如果在预期路径中找不到信用卡数据集 CSV. 
+        ValueError: 如果提供了不受支持的 `dataset_name`. 
     """
     if dataset_name == 'mnist':
-        # transforms.Compose(): Combined multiple operations.
-        # transforms.ToTensor(): Convert images to tensor type.
-        # transforms.Normalize(): Normalize.
+        # transforms.Compose(): 组合多个操作. 
+        # transforms.ToTensor(): 将图像转换为张量类型. 
+        # transforms.Normalize(): 归一化. 
         trans_mnist = transforms.Compose([
             transforms.ToTensor(),
             transforms.Normalize((0.1307,), (0.3081,))
         ])
 
-        # Download MNIST dataset to `datasets`. Using trans_mnist to transform MNIST images to 2 channels.
+        # 下载 MNIST 数据集到 `datasets`. 使用 trans_mnist 将 MNIST 图像转换为 2 通道. 
         dataset_train = datasets.MNIST('datasets/', train=True, download=True, transform=trans_mnist)
         dataset_test = datasets.MNIST('datasets/', train=False, download=True, transform=trans_mnist)
         labels = np.array([data[1] for data in dataset_train])
@@ -70,7 +67,7 @@ def get_data(dataset_name: str, seed: int = 1) -> tuple[torch.utils.data.Dataset
             X, y, test_size=0.15, random_state=random_state, stratify=y
         )
 
-        # scale the values of x (better training)
+        # 缩放 x 的值, 方便训练
         scaler = StandardScaler()
         scaler.fit(X_train)
         X_train = scaler.transform(X_train)

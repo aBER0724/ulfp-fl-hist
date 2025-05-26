@@ -10,7 +10,6 @@ from dp_accounting import dp_event
 from dp_accounting.rdp import RdpAccountant
 import copy # Potentially needed if config modification required for dataset init
 
-# --- 依赖库检查与导入 ---
 try:
     from dp_accounting import dp_event, privacy_accountant
 except ImportError:
@@ -18,10 +17,6 @@ except ImportError:
     print("请使用 pip install dp-accounting 安装 ")
     exit(1)
 
-# =============================================================================
-# !!! 用户必须提供此函数的具体实现 !!!
-# 请根据你项目中 FL/utilis/dataset.py 的逻辑填充此函数
-# =============================================================================
 def get_silo_user_counts(seed: int, n_silos: int, n_users: int, config: dict) -> list[int]:
     """
     根据 seed 和 config 重现 Silo 分配, 并返回每个 Silo 的用户数 
@@ -43,15 +38,9 @@ def get_silo_user_counts(seed: int, n_silos: int, n_users: int, config: dict) ->
         Exception: 其他在 Dataset 初始化或处理中发生的异常 
     """
     print("尝试调用用户实现的 get_silo_user_counts 函数...")
-    # ----------------------------------------------------------------------
-    # 在下方填入你调用 FL.utilis.dataset 来获取 silo_user_counts 的代码
-    # ----------------------------------------------------------------------
     try:
-        # 尝试导入你的 Dataset 类
         from FL.utilis.dataset import Dataset
 
-        # 从 config 提取 Dataset 初始化所需的参数
-        # 务必确保这里的参数列表和你的 Dataset 类所需的一致
         try:
             dataset_name = config['dataset_name']
             mode = config['mode']
@@ -107,9 +96,6 @@ def get_silo_user_counts(seed: int, n_silos: int, n_users: int, config: dict) ->
     except Exception as e:
         print(f"在 get_silo_user_counts 函数中发生错误: {e}")
         raise
-    # ----------------------------------------------------------------------
-    # raise NotImplementedError("请在此处实现 get_silo_user_counts 函数!")
-    # ----------------------------------------------------------------------
 
 # =============================================================================
 
@@ -324,7 +310,6 @@ def correct_epsilon_in_checkpoint(original_pth_path: str, corrected_pth_path: st
 
     print("Checkpoint 数据更新完毕 ")
 
-    # --- 保存修正后的文件 ---
     print(f"正在保存修正后的 checkpoint 到: {corrected_pth_path}")
     try:
         os.makedirs(os.path.dirname(corrected_pth_path), exist_ok=True)
@@ -349,7 +334,5 @@ if __name__ == "__main__":
     if 'get_silo_user_counts' not in globals() or not callable(get_silo_user_counts):
          print("内部错误: 函数 'get_silo_user_counts' 未定义或不可调用 ")
          exit(1)
-    # 可以在这里添加对 get_silo_user_counts 实现的检查提示
-    # print("注意：请确保 get_silo_user_counts 函数已根据您的项目正确实现！")
 
     correct_epsilon_in_checkpoint(args.original_pth_path, args.corrected_pth_path)

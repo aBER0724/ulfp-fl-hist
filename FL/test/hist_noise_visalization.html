@@ -1,3 +1,4 @@
+<!-- 56,72,63,51,84,18,60,73,87,59,52,98,7,83,66,7,42,95,36,53,2,92,92,55,37,24,6,62,29,18,67,98,1,66,5,59,15,94,55,4,16,4,10,2,65,32,67,51,87,52,27,43,36,76,16,87,13,13,59,8,52,81,93,63,60,93,78,4,45,25,44,74,0,34,47,78,92,25,15,10,12,61,27,32,42,93,98,56,65,2,57,34,9,66,28,23,18,23,54,41 -->
 <!DOCTYPE html>
 <html lang="zh">
 <head>
@@ -196,18 +197,18 @@
 
         // --- 重建边界 ---
         /**
-         * 根据指针表 (ptrTable) 和指定的区间数量 (k) 来重建最优的直方图边界。
-         * 这个函数通过回溯 ptrTable 来找到分割点。
+         * 根据指针表 (ptrTable) 和指定的区间数量 (k) 来重建最优的直方图边界. 
+         * 这个函数通过回溯 ptrTable 来找到分割点. 
          * ptrTable[i][j] 存储的是：当将前 i 个数据点（索引0到i-1）分割成 j 个区间时, 
-         * 第 j 个（即最后一个）区间的起始数据点索引（0-based）。
+         * 第 j 个（即最后一个）区间的起始数据点索引（0-based）. 
          *
-         * @param {number[][]} ptrTable - 指针表。
-         * @param {number} n - 原始数据点的总数。
-         * @param {number} k - 期望重建的区间数量。
-         * @returns {number[]} 一个数组, 包含 k 个区间的结束点（exclusive end index）。
+         * @param {number[][]} ptrTable - 指针表. 
+         * @param {number} n - 原始数据点的总数. 
+         * @param {number} k - 期望重建的区间数量. 
+         * @returns {number[]} 一个数组, 包含 k 个区间的结束点（exclusive end index）. 
          * 例如, 如果k=3, 数据长度n, 返回 [b1, b2, n], 
-         * 则区间为 [0, b1-1], [b1, b2-1], [b2, n-1]。
-         * 如果k=0, 返回空数组。如果k=1, 返回[n]。
+         * 则区间为 [0, b1-1], [b1, b2-1], [b2, n-1]. 
+         * 如果k=0, 返回空数组. 如果k=1, 返回[n]. 
          */
         function reconstructBoundaries(ptrTable, n, k) {
             if (k === 0) {
@@ -217,15 +218,15 @@
                 return [];
             }
             if (!ptrTable || ptrTable.length === 0 || !ptrTable[0] || ptrTable[0].length === 0) {
-                console.error("reconstructBoundaries: ptrTable 无效。");
+                console.error("reconstructBoundaries: ptrTable 无效. ");
                 return [];
             }
-            // k 是1-based的区间数。ptrTable的列索引对应区间数。
-            // ptrTable[n] 对应考虑了n个数据点的情况。
-            // ptrTable[n][k] 存储的是形成k个区间时, 最后一个区间的起始点。
+            // k 是1-based的区间数. ptrTable的列索引对应区间数. 
+            // ptrTable[n] 对应考虑了n个数据点的情况. 
+            // ptrTable[n][k] 存储的是形成k个区间时, 最后一个区间的起始点. 
             if (k >= ptrTable[0].length || (n > 0 && k > n) || !ptrTable[n] || ptrTable[n][k] === undefined) {
-                 console.warn(`无法重建边界: k=${k}, n=${n}。ptrTable 的最大 k 为 ${ptrTable[0].length -1}。可能 k 超出范围或无解。`);
-                 // 如果 k=1 且 n>0, ptrTable[n][1] 应该是 0。
+                 console.warn(`无法重建边界: k=${k}, n=${n}. ptrTable 的最大 k 为 ${ptrTable[0].length -1}. 可能 k 超出范围或无解. `);
+                 // 如果 k=1 且 n>0, ptrTable[n][1] 应该是 0. 
                  if (k === 1 && n > 0 && ptrTable[n] && ptrTable[n][1] !== undefined) {
                      // 只有一个区间, 它的结束点是 n
                  } else {
@@ -267,7 +268,7 @@
             
             // 验证边界数量是否等于 k
             if (finalBoundaries.length !== k && n > 0) {
-                console.warn(`重建的边界数量 ${finalBoundaries.length} 与期望的 k=${k} 不符。边界: [${finalBoundaries.join(', ')}]`);
+                console.warn(`重建的边界数量 ${finalBoundaries.length} 与期望的 k=${k} 不符. 边界: [${finalBoundaries.join(', ')}]`);
                 // 如果 k=1 且 n>0, internalSplitPoints 为空, finalBoundaries 为 [n], 长度为1. 正确.
             }
             if (n === 0 && k === 0) return []; // 0个数据0个区间, 是空边界
@@ -282,7 +283,7 @@
             const container = document.getElementById(elementId);
             container.innerHTML = '';
             if (!data || data.length === 0) {
-                container.textContent = '无数据可显示。';
+                container.textContent = '无数据可显示. ';
                 return;
             }
 
@@ -345,7 +346,7 @@
 
             if ((!data || data.length === 0) && !isOptimized) { 
                  if (!isOptimized || (isOptimized && (!boundaries || boundaries.length === 0))) {
-                    svgContainer.append("text").attr("x", "50%").attr("y", 20).attr("text-anchor", "middle").text("无数据可绘制。");
+                    svgContainer.append("text").attr("x", "50%").attr("y", 20).attr("text-anchor", "middle").text("无数据可绘制. ");
                     return;
                  }
             }
@@ -354,7 +355,7 @@
             if (isOptimized) {
                 let currentIdx = 0;
                 if (!originalData || originalData.length === 0) {
-                     svgContainer.append("text").attr("x", "50%").attr("y", 20).attr("text-anchor", "middle").text("无原始数据进行优化。");
+                     svgContainer.append("text").attr("x", "50%").attr("y", 20).attr("text-anchor", "middle").text("无原始数据进行优化. ");
                      return;
                 }
                 if (!boundaries || boundaries.length === 0) { 
@@ -362,10 +363,10 @@
                         // 如果有原始数据但没有边界（例如 k=0）, 则不绘制优化直方图的条形
                         // 但可能需要显示一个消息或空的坐标轴
                         // 这里我们假设如果 boundaries 为空, 则不绘制条形
-                        svgContainer.append("text").attr("x", "50%").attr("y", 20).attr("text-anchor", "middle").text("无优化区间可显示。");
+                        svgContainer.append("text").attr("x", "50%").attr("y", 20).attr("text-anchor", "middle").text("无优化区间可显示. ");
                         // return; // 可以选择返回, 或者继续绘制空的坐标轴
                     } else { // originalData 也为空
-                         svgContainer.append("text").attr("x", "50%").attr("y", 20).attr("text-anchor", "middle").text("无数据可绘制。");
+                         svgContainer.append("text").attr("x", "50%").attr("y", 20).attr("text-anchor", "middle").text("无数据可绘制. ");
                         return;
                     }
                 }
@@ -400,11 +401,11 @@
 
             // 即使 processedData 为空 (例如 k=0 优化), 也尝试绘制坐标轴
             // if (processedData.length === 0 && originalData && originalData.length > 0) { 
-            //      svgContainer.append("text").attr("x", "50%").attr("y", 20).attr("text-anchor", "middle").text("无法生成优化直方图的展示数据。");
+            //      svgContainer.append("text").attr("x", "50%").attr("y", 20).attr("text-anchor", "middle").text("无法生成优化直方图的展示数据. ");
             //      return;
             // }
             //  if (processedData.length === 0 && (!originalData || originalData.length === 0)) {
-            //      svgContainer.append("text").attr("x", "50%").attr("y", 20).attr("text-anchor", "middle").text("无数据可绘制。");
+            //      svgContainer.append("text").attr("x", "50%").attr("y", 20).attr("text-anchor", "middle").text("无数据可绘制. ");
             //      return;
             //  }
 
@@ -516,7 +517,7 @@
             document.getElementById('errorMessage').textContent = '';
 
             if (!dataStr || !maxKStr) {
-                document.getElementById('errorMessage').textContent = '请输入直方图数据和最大区间数。';
+                document.getElementById('errorMessage').textContent = '请输入直方图数据和最大区间数. ';
                 return;
             }
 
@@ -524,7 +525,7 @@
             const maxK = parseInt(maxKStr);
 
             if (histogramData.length === 0 && maxK > 0) { 
-                document.getElementById('errorMessage').textContent = '无效的直方图数据。请输入有效的数字。';
+                document.getElementById('errorMessage').textContent = '无效的直方图数据. 请输入有效的数字. ';
                 document.getElementById('errorCacheSection').classList.add('hidden');
                 document.getElementById('dpTableSection').classList.add('hidden');
                 document.getElementById('ptrTableSection').classList.add('hidden');
@@ -534,7 +535,7 @@
                 return;
             }
             if (isNaN(maxK) || maxK < 0) { 
-                document.getElementById('errorMessage').textContent = '最大区间数 (max_k) 必须是非负整数。';
+                document.getElementById('errorMessage').textContent = '最大区间数 (max_k) 必须是非负整数. ';
                 return;
             }
             
@@ -547,11 +548,11 @@
             const representativeType = errorMetric === 'sae' ? '中位数' : '均值';
 
             document.getElementById('errorCacheTitle').textContent = `${metricName} 缓存 (Error Cache)`;
-            document.getElementById('errorCacheDescription').textContent = `error_cache[i][j] 表示 data[i...j] 区间的${metricName}。`;
+            document.getElementById('errorCacheDescription').textContent = `error_cache[i][j] 表示 data[i...j] 区间的${metricName}. `;
             document.getElementById('dpTableTitle').textContent = `DP 表 (dp_table) - ${metricName}`;
-            document.getElementById('dpTableDescription').textContent = `dp_table[i][j] 表示将前 i 个数据点分为 j 个区间的最小总${metricName}。`;
+            document.getElementById('dpTableDescription').textContent = `dp_table[i][j] 表示将前 i 个数据点分为 j 个区间的最小总${metricName}. `;
             document.getElementById('ptrTableTitle').textContent = `指针表 (ptr_table) - ${metricName}`;
-            document.getElementById('ptrTableDescription').textContent = `ptr_table[i][j] 存储最后一个区间的起始索引, 用于将前 i 个数据点分为 j 个区间 (基于${metricName})。`;
+            document.getElementById('ptrTableDescription').textContent = `ptr_table[i][j] 存储最后一个区间的起始索引, 用于将前 i 个数据点分为 j 个区间 (基于${metricName}). `;
             document.getElementById('optimizedHistogramTitle').textContent = `优化后的直方图 (${metricName} - ${representativeType})`;
 
 
@@ -608,7 +609,7 @@
                  finalKSelect.value = finalKSelect.options[defaultKIndex].value;
                  document.getElementById('reconstructionSection').classList.remove('hidden');
             } else if (n > 0 && maxK > 0) { 
-                 document.getElementById('errorMessage').textContent = `无法为任何 k > 0 找到有效的 DP 解 (使用 ${metricName})。`;
+                 document.getElementById('errorMessage').textContent = `无法为任何 k > 0 找到有效的 DP 解 (使用 ${metricName}). `;
                  document.getElementById('reconstructionSection').classList.add('hidden');
             } else if (n === 0 && maxK === 0) { // n=0, maxK=0, finalK should have k=0
                  document.getElementById('reconstructionSection').classList.remove('hidden');
@@ -642,14 +643,14 @@
             const n = window.currentHistogramData ? window.currentHistogramData.length : 0;
             
             if (!finalKStr && n > 0) { 
-                 document.getElementById('reconstructedBoundaries').textContent = '请先运行计算并选择一个有效的最终区间数 (k)。';
+                 document.getElementById('reconstructedBoundaries').textContent = '请先运行计算并选择一个有效的最终区间数 (k). ';
                  return;
             }
              if (!finalKStr && n === 0) { // 如果没有数据, finalKStr可能是空的, 但如果k=0是唯一选项, 则应允许
                  if (document.getElementById('finalK').options.length === 1 && document.getElementById('finalK').value === "0") {
                      // Proceed with k=0 for n=0
                  } else {
-                    document.getElementById('reconstructedBoundaries').textContent = '请选择最终区间数 (k)。';
+                    document.getElementById('reconstructedBoundaries').textContent = '请选择最终区间数 (k). ';
                     return;
                  }
              }
@@ -659,12 +660,12 @@
             const errorMetric = window.selectedErrorMetric || 'sse';
 
             if (isNaN(finalK) || finalK < 0) {
-                document.getElementById('reconstructedBoundaries').textContent = '请选择一个有效的最终区间数 (k)。';
+                document.getElementById('reconstructedBoundaries').textContent = '请选择一个有效的最终区间数 (k). ';
                 return;
             }
             
             if (!window.currentPtrTable && finalK > 0 && n > 0) { 
-                 document.getElementById('reconstructedBoundaries').textContent = '请先运行 "计算并可视化"。';
+                 document.getElementById('reconstructedBoundaries').textContent = '请先运行 "计算并可视化". ';
                  return;
             }
             
@@ -676,11 +677,11 @@
             let start = 0;
             let binDefinitions = "";
             if (finalK === 0) {
-                 binDefinitions = "k=0 表示无区间。";
+                 binDefinitions = "k=0 表示无区间. ";
             } else if (n === 0 && finalK > 0) {
-                 binDefinitions = "无数据无法划分区间。";
+                 binDefinitions = "无数据无法划分区间. ";
             } else if (boundaries.length === 0 && finalK > 0 && n > 0) { 
-                 binDefinitions = `无法为 k=${finalK} 重构有效区间。可能是由于没有从DP表中找到解。`;
+                 binDefinitions = `无法为 k=${finalK} 重构有效区间. 可能是由于没有从DP表中找到解. `;
             }
             else {
                 boundaries.forEach((end, idx) => {

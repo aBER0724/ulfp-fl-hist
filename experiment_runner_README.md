@@ -1,57 +1,57 @@
-## Parameters
+## 参数
 
-The script supports all the parameters from the original FedAvg script, with these default values:
+该脚本支持原始 FedAvg 脚本中的所有参数, 并具有以下默认值：
 
-### General Parameters
+### 通用参数
 
-- **dataset**: mnist, creditcard
-- **seed**: 114514  
-- **distribute_mode**: uniform, zipf, dirichlet  
-- **n_silos**: 5
-- **user_alpha**: 0.5  
-- **silo_alpha**: 2.0  
-- **is_secure**: ndp, uldp  
-- **is_histogram_secure**: ndp, dp, nf_dp, sf_dp  
-- **histogram_epsilon**: 1.0, 3.0, 5.0  
-- **sigma**: 5.0  
-- **max_grad_norm**: 1.0
-- **local_learning_rate**: 0.01  
-- **global_learning_rate**: 10.0  
+- **dataset**：mnist, creditcard
+- **seed**：114514
+- **distribute_mode**：uniform, zipf, dirichlet
+- **n_silos**：5
+- **user_alpha**：0.5
+- **silo_alpha**：2.0
+- **is_secure**：ndp, uldp
+- **is_histogram_secure**：ndp, dp, nf_dp, sf_dp
+- **histogram_epsilon**：1.0, 3.0, 5.0
+- **sigma**：5.0
+- **max_grad_norm**：1.0
+- **local_learning_rate**：0.01
+- **global_learning_rate**：10.0
 
-### Dataset-Specific Parameters
+### 数据集特定参数
 
-#### CreditCard 
+#### CreditCard
 
-- **n_users**: 100, 1000  
-- **iters**: 100  
-- **local_epoch**: 30  
+- **n_users**：100, 1000
+- **iters**：100
+- **local_epoch**：30
 
 #### MNIST
 
-- **n_users**: 100, 10000  
-- **iters**: 200  
-- **local_epoch**: 20  
+- **n_users**：100, 10000
+- **iters**：200
+- **local_epoch**：20
 
-## Usage
+## 使用方法
 
 ```bash
 python run_experiments.py
 
-# Run only MNIST experiments
+# 仅运行 MNIST 实验
 python run_experiments.py --dataset mnist
 
-# Run only experiments with uniform distribution
+# 仅运行均匀分布的实验
 python run_experiments.py --distribute_mode uniform
 
-# Run only experiments with specific epsilon value
+# 仅运行特定 epsilon 值的实验
 python run_experiments.py --histogram_epsilon 1.0
 
-# Run with 4 parallel workers
+# 使用 4 个并行工作线程运行
 python run_experiments.py --parallel 4
 
-# Run only the first 10 experiments
+# 仅运行前 10 个实验
 python run_experiments.py --limit 10
 
-# Show what would be executed without running experiments
+# 显示将要执行的内容而不实际运行实验
 python run_experiments.py --dry_run
 ```

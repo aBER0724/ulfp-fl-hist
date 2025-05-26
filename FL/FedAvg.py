@@ -13,42 +13,40 @@ from FL.utilis.silo import Silo
 from FL.utilis.server import Server
 from FL.utilis.dataset import Dataset
 
-
 def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epochs, local_learning_rate, global_learning_rate, user_alpha, silo_alpha, mode, q_for_batch_size, is_secure, is_histogram_secure, histogram_epsilon, delta, sigma, max_grad_norm, max_samples, iters):
     """
-    执行联邦平均(FedAvg)算法 
-
-    该函数模拟了一个包含中央服务器和多个数据机构的联邦学习过程 
-    它处理数据分布、机构中的本地训练、服务器上的模型聚合, 
-    并可选择性地加入差分隐私机制 
+    FedAvg 算法 
 
     参数:
         dataset_name (str): 使用的数据集名称(如'mnist', 'creditcard')
         model (torch.nn.Module): 要训练的PyTorch模型
         n_silos (int): 参与FL过程的机构总数
         n_users (int): 数据分布在机构中的用户总数
-        seed (int): 用于数据分布和其他随机过程可重现性的随机种子
+        seed (int): 数据分布等随机过程的种子
         batch_size (int): 每个机构本地训练使用的批量大小
         local_epochs (int): 每个FL轮次中机构本地训练的epoch数
         local_learning_rate (float): 机构本地优化器的学习率
-        global_learning_rate (float): 服务器全局模型更新的学习率或聚合权重
-        user_alpha (float): 控制用户间数据分布异质性的参数(如Zipf或Dirichlet)
-        silo_alpha (float): 控制机构间数据分布异质性的参数
+        global_learning_rate (float): 服务器全局模型更新的学习率
+        user_alpha (float): 用户间数据分布异质性的参数
+        silo_alpha (float): 机构间数据分布异质性的参数
         mode (str): 数据分布模式('uniform', 'zipf', 'dirichlet')
         q_for_batch_size (float): 采样率q, 用于机构确定其有效批量大小, 
                                   通常与隐私计算相关(如q = batch_size / N_samples_in_silo)
-        is_secure (str): 指定模型更新的差分隐私类型('cldp', 'uldp', 'ndp'表示无)
-        is_histogram_secure (str): 指定用户直方图的DP('dp', 'nf_dp', 'sf_dp', 或''表示无)
-        histogram_epsilon (float): 如果启用`is_histogram_secure`, 则为直方图差分隐私的epsilon值
-        delta (float): (epsilon, delta)-差分隐私的delta参数
-        sigma (float): DP的噪声乘数(高斯噪声相对于敏感度的标准差)
-        max_grad_norm (float): 梯度裁剪阈值以确保DP的敏感度
-        max_samples (int, optional): 从数据集中使用的最大样本数 如果为None, 则使用所有样本
-        iters (int): 联邦学习轮次(迭代)的总数
+        is_secure (str): 指定模型更新的差分隐私类型('cldp', 'uldp', 'ndp'表示无差分隐私)
+        is_histogram_secure (str): 指定用户直方图的DP('dp', 'nf_dp', 'sf_dp', 或''表示无直方图差分隐私)
+        histogram_epsilon (float): 启用直方图差分隐私的epsilon值
+        delta (float): 差分隐私的delta参数
+        sigma (float): 差分隐私的sigma参数
+        max_grad_norm (float): 梯度裁剪阈值
+        max_samples (int, optional): 使用数据集中的最大样本数 如果为None, 则使用所有样本
+        iters (int): 联邦学习轮次的总数
     """
+    logger.info("======================DISTRIBUTE DATA=====================")
     dataset = Dataset(dataset_name, n_silos, n_users, user_alpha, silo_alpha, seed, mode, max_samples)
     
+    logger.info("=======================CREAT SERVER=======================")
     server = Server(dataset, model, global_learning_rate, is_secure)
+    logger.info("=======================CREAT SILOS=======================")
     silos = [Silo(i, server, dataset, model, local_learning_rate, q_for_batch_size, local_epochs, is_secure, is_histogram_secure, delta, sigma, max_grad_norm, histogram_epsilon) for i in range(n_silos)]
     
     logger.info("================COMPUTE USER WEIGHT START================")
@@ -105,7 +103,7 @@ def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epoch
             epsilon_total += silo.consumed_epsilon
             logger.info(f"Iter {i} | Silo {j} - Loss: {avg_loss:.4f}, Acc: {avg_acc:.2f}%")
         
-        # Calculate overall averages
+        # 计算总体平均值
         avg_loss = avg_loss_total / n_silos
         avg_acc = avg_acc_total / n_silos
 
@@ -160,7 +158,7 @@ def fed_avg(dataset_name, model, n_silos, n_users, seed, batch_size, local_epoch
         }
     }
 
-    # 为本次训练运行创建唯一目录
+    # 创建记录目录
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_dir = f"record/output_{timestamp}_s{n_silos}_u{n_users}_e{local_epochs}_{is_secure}"
     os.makedirs(output_dir, exist_ok=True)
@@ -237,17 +235,15 @@ if __name__ == "__main__":
     if dataset_name == 'mnist':
         model = CNNMnist()
     elif dataset_name == 'creditcard':
-        # Use PrivateFraudNet model from uldp-fl
         model = PrivateFraudNet(input_dim=30, hidden_dim=30, num_layers=4)
     else:
         raise ValueError(f"Unknown dataset {dataset_name}")
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    # device = torch.device("cuda" if torch.cuda.is_available() else "mps")
     model = model.to(device)
     print(f"Training device: {device}")
     
-    # 启动联邦学习过程
+    # 启动联邦学习
     fed_avg(
         dataset_name=dataset_name,
         model=model,

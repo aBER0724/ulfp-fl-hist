@@ -13,7 +13,7 @@ class Dataset:
             user_alpha: 用户数据分布参数
             silo_alpha: 机构数据分布参数
             seed: 随机种子
-            mode: 分布模式, 'uniform'(均匀)、'zipf'或'dirichlet'
+            mode: 分布模式, 'uniform'、'zipf'或'dirichlet'
             max_samples: 最大样本数
         """
         self.seed = seed
@@ -27,7 +27,6 @@ class Dataset:
         self.dataset_train, self.dataset_test, self.labels = get_data(dataset_name, self.seed)
         self.users_indices_of_data = []
         self.silos_indices_of_data = {i: {user_id: [] for user_id in range(self.n_users)} for i in range(self.n_silos)}
-        self.silos_weights = []
         self.divide_dataset()
     
     def get_whole_train_data(self):
@@ -48,14 +47,14 @@ class Dataset:
         """
         n_data = len(self.dataset_train)
         
-        # Apply sample limit if specified
+        # 限制使用样本数量
         if self.max_samples is not None and self.max_samples < n_data:
             n_data = self.max_samples
 
-        # Distribute data to users
+        # 分配数据给用户
         self.distribute_to_user(n_data)
 
-        # Distribute users data to silos
+        # 分配数据给机构
         self.distribute_to_silo()
     
     def distribute_to_user(self, n_data=None):
@@ -70,19 +69,21 @@ class Dataset:
         if n_data is None:
             n_data = len(self.dataset_train)
             
-        # Create a randomly shuffled list of indices
+        # 创建一个随机打乱的索引列表
         all_indices = np.random.permutation(len(self.dataset_train))
-        # Select only the first n_data indices
+        # 仅选择前 n_data 个索引(最大数量)
         limited_indices = all_indices[:n_data]
         
         N = self.n_users
         x = np.arange(1, N + 1)
 
         if self.distribute_mode == 'uniform':
+            # 平均分配
             user_indices_of_data = np.random.permutation(
                 int(np.ceil(n_data / N)) * list(range(N))
             )
         else:
+            # 非独立同分布
             if self.distribute_mode == 'zipf':
                 weights = x ** (-self.user_alpha)
                 weights /= weights.sum()
@@ -127,21 +128,12 @@ class Dataset:
                     x, size=len(indices), replace=True, p=weights)
                 user_data_indices_in_silo = user_data_indices_in_silo - 1
 
-
             for silo_id, idx in zip(user_data_indices_in_silo, indices):
                 self.silos_indices_of_data[silo_id][user_id].append(idx)
-            
-        # Silo weight list
-        self.silos_weights = []
-        for silo_id, silo_indices in self.silos_indices_of_data.items():
-            silo_weight = 0
-            for user_id, user_indices in silo_indices.items():
-                silo_weight += len(user_indices)
-            self.silos_weights.append(silo_weight)
 
     def get_dataset(self, user_data_indices):
         """
-        将预分配的索引转换为特定客户端的数据集 
+        将预分配的索引转换为客户端的数据集 
         
         参数:
             user_data_indices: 用户或用户集合的数据索引 
@@ -153,7 +145,7 @@ class Dataset:
         for user_indices in user_data_indices:
             data_indices.append(user_indices)
         
-        # Create subset from list
+        # 通过列表创建数据子集
         data = torch.utils.data.Subset(self.dataset_train, data_indices)
         
         return data
@@ -168,12 +160,12 @@ class Dataset:
         返回:
             silo_dataset: 指定机构的数据集 
         """
-        # 获取该silo所有用户的数据索引
+        # 获取该机构所有用户的数据索引
         user_data_indices = []
         for user_id, indices in self.silos_indices_of_data[silo_id].items():
             user_data_indices.extend(indices)
         
-        # 创建该silo的数据集
+        # 创建该机构的数据集
         silo_dataset = torch.utils.data.Subset(self.dataset_train, user_data_indices)
         
         return silo_dataset
@@ -182,7 +174,7 @@ class Dataset:
         """
         获取用户数据的直方图 
         返回:
-            一个列表, 其中索引对应user_id, 值是该用户的样本数量
+            list, index对应user_id, value是该用户的样本数量
         """
         user_histogram = [0] * self.n_users
         
@@ -193,22 +185,16 @@ class Dataset:
 
     def get_silos_indices(self, silo_id):
         """
-        获取特定机构内所有用户的数据索引 
+        获取机构内所有用户的数据索引 
 
         参数:
             silo_id: 机构的ID 
 
         返回:
-            一个字典, 其中键是user_ids, 值是属于该用户在指定机构内的数据索引列表 
+            dict, key是user_ids, value是该用户在指定机构内的数据索引列表 
             示例: {user_0: [idx1, idx2, ...], user_1: [idx_a, idx_b, ...]}
         """
         return self.silos_indices_of_data[silo_id]
-
-    def get_silos_weights(self):
-        """
-        获取机构的权重 
-        """
-        return self.silos_weights
 
     def get_user_number(self):
         """

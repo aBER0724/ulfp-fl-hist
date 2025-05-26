@@ -1,5 +1,5 @@
 #!/user/bin/python
-# author jeff
+# 作者：jeff
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 import numpy as np
@@ -7,23 +7,23 @@ import numpy as np
 
 class IIDBatchSampler:
     """
-    Implements a batch sampler that approximates Poisson sampling.
-    Each sample from the dataset is included in a batch with probability p = minibatch_size / dataset_length.
-    This results in batches of varying sizes, where the expected batch size is `minibatch_size`.
+    实现一个近似泊松采样的小批量采样器. 
+    数据集中的每个样本以概率 p = minibatch_size / dataset_length 被包含在一个批次中. 
+    这会导致批次大小可变, 其中预期的批次大小为 `minibatch_size`. 
 
-    Attributes:
-        length (int): Total number of samples in the dataset.
-        minibatch_size (int): The target average size for each minibatch.
-        iterations (int): The number of batches to generate in one epoch.
+    属性:
+        length (int): 数据集中的样本总数. 
+        minibatch_size (int): 每个小批量的目标平均大小. 
+        iterations (int): 一个 epoch 中要生成的批次数. 
     """
     def __init__(self, dataset, minibatch_size, iterations):
         """
-        Initializes the IIDBatchSampler.
+        初始化 IIDBatchSampler. 
 
-        Args:
-            dataset (torch.utils.data.Dataset): The dataset to sample from.
-            minibatch_size (int): The target average size for each minibatch.
-            iterations (int): The number of batches to generate in one epoch.
+        参数:
+            dataset (torch.utils.data.Dataset): 从中采样的数据集. 
+            minibatch_size (int): 每个小批量的目标平均大小. 
+            iterations (int): 一个 epoch 中要生成的批次数. 
         """
         self.length = len(dataset)
         self.minibatch_size = minibatch_size
@@ -31,43 +31,42 @@ class IIDBatchSampler:
 
     def __iter__(self):
         """
-        Yields a batch of indices for `iterations` times.
-        Each index is selected with probability `minibatch_size / length`.
+        为 `iterations` 次迭代生成一批索引. 
+        每个索引以概率 `minibatch_size / length` 被选中. 
         """
         for _ in range(self.iterations):
-            # Each sample is chosen with probability p = minibatch_size / total_samples.
-            # This is a Bernoulli trial for each sample.
-            # The number of samples chosen follows a Binomial distribution B(n, p).
-            # For large n and small p, this approximates a Poisson distribution with lambda = n*p = minibatch_size.
+            # 每个样本以概率 p = minibatch_size / total_samples 被选中. 
+            # 这是对每个样本的伯努利试验. 
+            # 选中的样本数量服从二项分布 B(n, p). 
+            # 对于大的 n 和小的 p, 这近似于泊松分布, 其中 lambda = n*p = minibatch_size. 
             indices = np.where(torch.rand(self.length) < (self.minibatch_size / self.length))[0]
             if indices.size > 0:
                 yield indices
 
     def __len__(self) -> int:
-        """Returns the number of batches (iterations) per epoch."""
+        """返回每个 epoch 的批次数（迭代次数）. """
         return self.iterations
 
 
 # 该采样每次抽取的数量相等,不放回
 class EquallySizedAndIndependentBatchSamplerWithoutReplace:
     """
-    Implements a batch sampler that generates batches of a fixed size by sampling
-    indices from the dataset *without* replacement for each batch.
-    Across different batches, samples can be repeated as each batch is an independent sampling event.
+    实现一个批次采样器, 通过对每个批次从数据集中*不放回*采样索引来生成固定大小的批次. 
+    在不同的批次之间, 样本可以重复, 因为每个批次都是独立的采样事件. 
 
-    Attributes:
-        length (int): Total number of samples in the dataset.
-        minibatch_size (int): The fixed size for each minibatch.
-        iterations (int): The number of batches to generate in one epoch.
+    属性:
+        length (int): 数据集中的样本总数. 
+        minibatch_size (int): 每个小批量的固定大小. 
+        iterations (int): 一个 epoch 中要生成的批次数. 
     """
     def __init__(self, dataset, minibatch_size, iterations):
         """
-        Initializes the sampler.
+        初始化采样器. 
 
-        Args:
-            dataset (torch.utils.data.Dataset): The dataset to sample from.
-            minibatch_size (int): The fixed size for each minibatch.
-            iterations (int): The number of batches to generate.
+        参数:
+            dataset (torch.utils.data.Dataset): 从中采样的数据集. 
+            minibatch_size (int): 每个小批量的固定大小. 
+            iterations (int): 要生成的批次数. 
         """
         self.length = len(dataset)
         self.minibatch_size = minibatch_size
@@ -75,34 +74,33 @@ class EquallySizedAndIndependentBatchSamplerWithoutReplace:
 
     def __iter__(self):
         """
-        Yields `iterations` batches, each containing `minibatch_size` unique indices
-        sampled without replacement from the dataset for that specific batch.
+        生成 `iterations` 个批次, 每个批次包含 `minibatch_size` 个唯一索引, 
+        这些索引是针对该特定批次从数据集中不放回采样的. 
         """
         for _ in range(self.iterations):
             yield np.random.choice(self.length, self.minibatch_size, replace=False)
 
     def __len__(self) -> int:
-        """Returns the number of batches (iterations) per epoch."""
+        """返回每个 epoch 的批次数（迭代次数）. """
         return self.iterations
 
 class EquallySizedAndIndependentBatchSamplerWithReplace:
     """
-    Implements a batch sampler that generates batches of a fixed size by sampling
-    indices from the dataset *with* replacement for each batch.
+    实现一个批次采样器, 通过对每个批次从数据集中*有放回*采样索引来生成固定大小的批次. 
 
-    Attributes:
-        length (int): Total number of samples in the dataset.
-        minibatch_size (int): The fixed size for each minibatch.
-        iterations (int): The number of batches to generate in one epoch.
+    属性:
+        length (int): 数据集中的样本总数. 
+        minibatch_size (int): 每个小批量的固定大小. 
+        iterations (int): 一个 epoch 中要生成的批次数. 
     """
     def __init__(self, dataset, minibatch_size, iterations):
         """
-        Initializes the sampler.
+        初始化采样器. 
 
-        Args:
-            dataset (torch.utils.data.Dataset): The dataset to sample from.
-            minibatch_size (int): The fixed size for each minibatch.
-            iterations (int): The number of batches to generate.
+        参数:
+            dataset (torch.utils.data.Dataset): 从中采样的数据集. 
+            minibatch_size (int): 每个小批量的固定大小. 
+            iterations (int): 要生成的批次数. 
         """
         self.length = len(dataset)
         self.minibatch_size = minibatch_size
@@ -110,51 +108,50 @@ class EquallySizedAndIndependentBatchSamplerWithReplace:
 
     def __iter__(self):
         """
-        Yields `iterations` batches, each containing `minibatch_size` indices
-        sampled with replacement from the dataset.
+        生成 `iterations` 个批次, 每个批次包含 `minibatch_size` 个索引, 
+        这些索引是从数据集中有放回采样的. 
         """
         for _ in range(self.iterations):
             yield np.random.choice(self.length, self.minibatch_size, replace=True)
 
     def __len__(self) -> int:
-        """Returns the number of batches (iterations) per epoch."""
+        """返回每个 epoch 的批次数（迭代次数）. """
         return self.iterations
 
 
-#三种采样都有的文章《Privacy Amplification by Subsampling: Tight Analyses via Couplings and Divergences》
+# 三种采样方法均在文章《Privacy Amplification by Subsampling: Tight Analyses via Couplings and Divergences》中有所提及
 
-#均匀采样不放回（《Subsamlping Gaussian RDP》）
-# Note: The Sampled Gaussian Mechanism (SGM) typically uses sampling without replacement.
-# See, e.g., "Renyi Differential Privacy of the Sampled Gaussian Mechanism".
+# 均匀采样不放回（参考《Subsampling Gaussian RDP》）
+# 注意：采样高斯机制 (SGM) 通常使用不放回采样. 
+# 例如, 参见 "Renyi Differential Privacy of the Sampled Gaussian Mechanism". 
 def get_data_loaders_uniform_without_replace(minibatch_size, microbatch_size, iterations, drop_last=True):
     """
-    Returns a pair of functions to create DataLoaders for minibatch and microbatch processing,
-    using uniform sampling without replacement at the minibatch level.
+    返回一对函数, 用于创建小批量和微批量处理的 DataLoader,
+    在小批量级别使用均匀不放回采样. 
 
-    Args:
-        minibatch_size (int): The size of each minibatch sampled from the original dataset.
-        microbatch_size (int): The size of microbatches to be created from each minibatch.
-        iterations (int): The number of minibatches to sample per epoch.
-        drop_last (bool): Whether to drop the last incomplete microbatch if the minibatch
-                          size is not a multiple of `microbatch_size`. Defaults to True.
+    参数:
+        minibatch_size (int): 从原始数据集中采样的每个小批量的大小. 
+        microbatch_size (int): 从每个小批量创建的微批量的大小. 
+        iterations (int): 每个 epoch 采样的小批量数量. 
+        drop_last (bool): 如果小批量大小不是 `microbatch_size` 的倍数, 是否丢弃最后一个不完整的微批量. 默认为 True. 
 
-    Returns:
+    返回:
         tuple[collections.abc.Callable, collections.abc.Callable]:
-            - minibatch_loader (function): A function that takes a `dataset` and returns a
-                                           `DataLoader` for minibatches, using
-                                           `EquallySizedAndIndependentBatchSamplerWithoutReplace`.
-            - microbatch_loader (function): A function that takes a `minibatch` (a TensorDataset)
-                                            and returns a `DataLoader` for microbatches.
+            - minibatch_loader (function): 一个函数, 接收一个 `dataset` 并返回一个
+                                           用于小批量的 `DataLoader`, 使用
+                                           `EquallySizedAndIndependentBatchSamplerWithoutReplace`. 
+            - microbatch_loader (function): 一个函数, 接收一个 `minibatch` (一个 TensorDataset)
+                                            并返回一个用于微批量的 `DataLoader`. 
     """
     def minibatch_loader(dataset: torch.utils.data.Dataset) -> DataLoader:
-        """Creates a DataLoader for minibatches using sampling without replacement."""
+        """使用不放回采样为小批量创建 DataLoader. """
         return DataLoader(
             dataset,
             batch_sampler=EquallySizedAndIndependentBatchSamplerWithoutReplace(dataset, minibatch_size, iterations)
         )
 
     def microbatch_loader(minibatch: TensorDataset) -> DataLoader:
-        """Creates a DataLoader for microbatches from a given minibatch."""
+        """从给定的小批量创建微批量的 DataLoader. """
         return DataLoader(
             minibatch,
             batch_size=microbatch_size,
@@ -164,32 +161,32 @@ def get_data_loaders_uniform_without_replace(minibatch_size, microbatch_size, it
 
 def get_data_loaders_uniform_with_replace(minibatch_size, microbatch_size, iterations, drop_last=True):
     """
-    Returns a pair of functions to create DataLoaders for minibatch and microbatch processing,
-    using uniform sampling with replacement at the minibatch level.
+    返回一对函数, 用于创建小批量和微批量处理的 DataLoader,
+    在小批量级别使用均匀有放回采样. 
 
-    Args:
-        minibatch_size (int): The size of each minibatch sampled from the original dataset.
-        microbatch_size (int): The size of microbatches to be created from each minibatch.
-        iterations (int): The number of minibatches to sample per epoch.
-        drop_last (bool): Whether to drop the last incomplete microbatch. Defaults to True.
+    参数:
+        minibatch_size (int): 从原始数据集中采样的每个小批量的大小. 
+        microbatch_size (int): 从每个小批量创建的微批量的大小. 
+        iterations (int): 每个 epoch 采样的小批量数量. 
+        drop_last (bool): 是否丢弃最后一个不完整的微批量. 默认为 True. 
 
-    Returns:
+    返回:
         tuple[collections.abc.Callable, collections.abc.Callable]:
-            - minibatch_loader (function): A function that takes a `dataset` and returns a
-                                           `DataLoader` for minibatches, using
-                                           `EquallySizedAndIndependentBatchSamplerWithReplace`.
-            - microbatch_loader (function): A function that takes a `minibatch` and returns
-                                            a `DataLoader` for microbatches.
+            - minibatch_loader (function): 一个函数, 接收一个 `dataset` 并返回一个
+                                           用于小批量的 `DataLoader`, 使用
+                                           `EquallySizedAndIndependentBatchSamplerWithReplace`. 
+            - microbatch_loader (function): 一个函数, 接收一个 `minibatch` 并返回
+                                            一个用于微批量的 `DataLoader`. 
     """
     def minibatch_loader(dataset):
-        """Creates a DataLoader for minibatches using sampling with replacement."""
+        """使用有放回采样为小批量创建 DataLoader. """
         return DataLoader(
             dataset,
             batch_sampler=EquallySizedAndIndependentBatchSamplerWithReplace(dataset, minibatch_size, iterations)
         )
 
     def microbatch_loader(minibatch):
-        """Creates a DataLoader for microbatches from a given minibatch."""
+        """从给定的小批量创建微批量的 DataLoader. """
         return DataLoader(
             minibatch,
             batch_size=microbatch_size,
@@ -197,35 +194,35 @@ def get_data_loaders_uniform_with_replace(minibatch_size, microbatch_size, itera
         )
     return minibatch_loader, microbatch_loader
 
-# Poisson
-def get_data_loaders_possion(minibatch_size: int, microbatch_size: int, iterations: int, drop_last: bool = True): # Potential typo: possion -> poisson
+# 泊松采样
+def get_data_loaders_possion(minibatch_size: int, microbatch_size: int, iterations: int, drop_last: bool = True): # 潜在拼写错误: possion -> poisson
     """
-    Returns a pair of functions to create DataLoaders for minibatch and microbatch processing,
-    using Poisson-like sampling (via `IIDBatchSampler`) at the minibatch level.
-    The `IIDBatchSampler` results in variable-sized minibatches with an expected size of `minibatch_size`.
+    返回一对函数, 用于创建小批量和微批量处理的 DataLoader,
+    在小批量级别使用类泊松采样 (通过 `IIDBatchSampler`). 
+    `IIDBatchSampler` 会产生大小可变的小批量, 其预期大小为 `minibatch_size`. 
 
-    Args:
-        minibatch_size (int): The target average size for each minibatch.
-        microbatch_size (int): The size of microbatches to be created from each minibatch.
-        iterations (int): The number of minibatches to sample per epoch.
-        drop_last (bool): Whether to drop the last incomplete microbatch. Defaults to True.
+    参数:
+        minibatch_size (int): 每个小批量的目标平均大小. 
+        microbatch_size (int): 从每个小批量创建的微批量的大小. 
+        iterations (int): 每个 epoch 采样的小批量数量. 
+        drop_last (bool): 是否丢弃最后一个不完整的微批量. 默认为 True. 
 
-    Returns:
+    返回:
         tuple[collections.abc.Callable, collections.abc.Callable]:
-            - minibatch_loader (function): A function that takes a `dataset` and returns a
-                                           `DataLoader` for minibatches, using `IIDBatchSampler`.
-            - microbatch_loader (function): A function that takes a `minibatch` and returns
-                                            a `DataLoader` for microbatches.
+            - minibatch_loader (function): 一个函数, 接收一个 `dataset` 并返回一个
+                                           用于小批量的 `DataLoader`, 使用 `IIDBatchSampler`. 
+            - microbatch_loader (function): 一个函数, 接收一个 `minibatch` 并返回
+                                            一个用于微批量的 `DataLoader`. 
     """
     def minibatch_loader(dataset):
-        """Creates a DataLoader for minibatches using IIDBatchSampler (Poisson-like)."""
+        """使用 IIDBatchSampler (类泊松) 为小批量创建 DataLoader. """
         return DataLoader(
             dataset,
             batch_sampler=IIDBatchSampler(dataset, minibatch_size, iterations)
         )
 
     def microbatch_loader(minibatch):
-        """Creates a DataLoader for microbatches from a given (potentially variable-sized) minibatch."""
+        """从给定的小批量 (可能大小可变) 创建微批量的 DataLoader. """
         return DataLoader(
             minibatch,
             batch_size=microbatch_size,
