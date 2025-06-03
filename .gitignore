@@ -15,3 +15,5 @@ record.zip
 
 
 .cursor/rules/*
+
+.DS_Store
