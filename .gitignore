@@ -3,8 +3,7 @@ __pycache__/
 .idea/
 
 datasets/MNIST/
-datasets/CreditCard/
-datasets/HeartDisease/
+datasets/CreateDataset/creditcard.csv
 record/*/
 record/*.png
 FL/test/test_output/noise_method_comparison/*.png
