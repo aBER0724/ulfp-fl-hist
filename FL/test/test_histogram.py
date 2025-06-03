@@ -146,13 +146,19 @@ def plot_comparison_results(original_hist, hist_variants_data, output_dir, plot_
     ax1.bar(method_labels, mae_values, color=method_colors, alpha=0.7)
     ax1.set_title('Mean Absolute Error')
     ax1.set_ylabel('MAE')
-    ax1.tick_params(axis='x', rotation=45)
+    ax1.tick_params(axis='x', rotation=20) # 移除 ha 参数
+    for label in ax1.get_xticklabels():
+        label.set_rotation(20)
+        label.set_horizontalalignment('right')
     ax1.grid(axis='y', linestyle='--', alpha=0.7)
     
     ax2.bar(method_labels, mse_values, color=method_colors, alpha=0.7)
     ax2.set_title('Mean Squared Error')
     ax2.set_ylabel('MSE')
-    ax2.tick_params(axis='x', rotation=45)
+    ax2.tick_params(axis='x', rotation=20) # 移除 ha 参数
+    for label in ax2.get_xticklabels():
+        label.set_rotation(20)
+        label.set_horizontalalignment('right')
     ax2.grid(axis='y', linestyle='--', alpha=0.7)
     
     for i, v_mae in enumerate(mae_values):

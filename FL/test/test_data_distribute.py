@@ -75,7 +75,7 @@ def analyze_distributions(data_indices_of_user, data_indices_of_silo, dataset_tr
             一个用于用户样本计数, 一个用于标签计数. 
             """
             n_silos = len(silo_datasets)
-            silos_per_row = 4  # 每行的数据机构数量从 2 增加到 4
+            silos_per_row = 2  # 每行的数据机构数量 (目标: 一行最多4个子图, 每个数据机构2个子图)
             rows = (n_silos + silos_per_row - 1) // silos_per_row
             plt.figure(figsize=(24, 6 * rows))  # 调整了每行的高度
 
@@ -112,11 +112,11 @@ def analyze_distributions(data_indices_of_user, data_indices_of_silo, dataset_tr
                 plt.bar(users, counts, color='skyblue')
                 plt.title(
                     f'Silo-{silo_id} Top 10 Users\n(Total Users: {len(user_counts) if hasattr(user_counts, "__len__") else "Unknown"})',
-                    fontsize=14)
-                plt.xlabel('User ID', fontsize=12)
-                plt.ylabel('Samples', fontsize=12)
-                plt.xticks(rotation=45, fontsize=10)
-                plt.yticks(fontsize=10)
+                    fontsize=22)
+                plt.xlabel('User ID', fontsize=20)
+                plt.ylabel('Samples', fontsize=20)
+                plt.xticks(rotation=45, fontsize=14)
+                plt.yticks(fontsize=14)
 
                 # 标签分布子图
                 plt.subplot(rows, silos_per_row * 2, row * silos_per_row * 2 + col_base + 2)
@@ -126,11 +126,11 @@ def analyze_distributions(data_indices_of_user, data_indices_of_silo, dataset_tr
                 plt.bar(labels, counts, color='salmon')
                 plt.title(
                     f'Silo-{silo_id} Label Distribution\n(Total Samples: {sum(counts)})',
-                    fontsize=14)
-                plt.xlabel('Label', fontsize=12)
-                plt.ylabel('Samples', fontsize=12)
-                plt.xticks(range(10), labels, rotation=45, fontsize=10)
-                plt.yticks(fontsize=10)
+                    fontsize=22)
+                plt.xlabel('Label', fontsize=20)
+                plt.ylabel('Samples', fontsize=20)
+                plt.xticks(range(10), labels, rotation=45, fontsize=14)
+                plt.yticks(fontsize=14)
 
             plt.tight_layout()
             plt.savefig(
@@ -145,8 +145,8 @@ def analyze_distributions(data_indices_of_user, data_indices_of_silo, dataset_tr
             热力图在 y 轴上显示数据机构, 在 x 轴上显示用户. 
             单元格值表示用户样本在特定数据机构中的比例. 
             """
-            # 大幅增加图形尺寸以适应可能的大量用户
-            plt.figure(figsize=(60, 20))  # 显著增加宽度以容纳所有用户标签
+            # 调整图形尺寸为更窄更高
+            plt.figure(figsize=(50, 30))  # 修改为更窄更高的尺寸
             user_matrix = []
             silo_ids = sorted(silo_user_distributions.keys())
             
@@ -206,27 +206,36 @@ def analyze_distributions(data_indices_of_user, data_indices_of_silo, dataset_tr
             
             plt.subplot(1, 1, 1)
             
-            plt.rcParams.update({'font.size': 14})
+            plt.rcParams.update({'font.size': 44}) # 进一步增大全局字体大小，影响颜色条等
             
             try:
-                sns.heatmap(df_users, 
+                sns.heatmap(df_users,
                         annot=False,  # 由于用户数量可能很多, 移除数值标注
                         fmt='.1f',   # 保留一位小数
                         cmap='Reds',
-                        cbar_kws={'label': 'Percentage (%)'})
+                        cbar_kws={'label': 'Percentage (%)', 'orientation': 'horizontal'}) # 调整颜色条标签字体大小 (通过rcParams全局设置)
                 
-                plt.title('User Distribution Across Silos (%)', fontsize=16, pad=20)
-                plt.xlabel('Users', fontsize=20)
-                plt.ylabel('Silos', fontsize=20)
+                plt.title('User Distribution Across Silos (%)', fontsize=48, pad=20) # 热力图标题保持不变
+                plt.xlabel('Users', fontsize=46) # X轴标签字体保持
+                plt.ylabel('Silos', fontsize=50) # 增大热力图Y轴图例字体
                 
-                # 调整标签以适应大量用户
-                plt.xticks(rotation=90, ha='center', fontsize=8)  # 减小字体, 垂直放置标签
-                plt.yticks(fontsize=14)  # 调整 y 轴标签大小
+                # 调整标签以适应大量用户，并每隔10个用户显示一个标签
+                num_users = len(all_users)
+                tick_positions = np.arange(0, num_users, 9)
+                tick_labels = [f'User-{all_users[i]+1}' for i in tick_positions if i < num_users]
+                
+                # 如果没有用户或者tick_positions为空，则使用默认xticks
+                if num_users > 0 and len(tick_positions) > 0 :
+                    plt.xticks(ticks=tick_positions, labels=tick_labels, rotation=45, ha='center', fontsize=46) # 调整X轴刻度字体和间隔
+                else:
+                    plt.xticks(rotation=90, ha='center', fontsize=46) # 默认情况
+
+                plt.yticks(fontsize=44)  # Y轴刻度字体保持
                 
                 # 先进行 tight_layout, 然后再调整底部空间
                 plt.tight_layout()
-                # 确保图表留出足够空间给x轴标签
-                plt.subplots_adjust(bottom=0.4)
+                # 确保图表留出足够空间给x轴标签和颜色条
+                plt.subplots_adjust(bottom=0.2) # 减小底部空间以避免 "bottom cannot be >= top" 错误
                 plt.savefig(os.path.join(output_dir, f'distribution_heatmaps_{mode}.png'),
                         dpi=150, bbox_inches='tight')
             except Exception as e:
@@ -405,3 +414,4 @@ if __name__ == "__main__":
             plot_functions.plot_user_distribution_heatmap()
             
         print_info_detail_of_silo(dataset_object, silo_loaders, silo_datasets)
+
